@@ -50,6 +50,12 @@
 - **Docker Compose** — PostgreSQL 16 + pgvector（端口 5433）
 - **Vite Dev Proxy** — `/api` → `http://localhost:8000`
 
+### Git 仓库
+
+- **GitHub**：`https://github.com/XyYpower/xyy.git`
+- **主分支**：`main`
+- **注意**：国内网络不稳定，`git push` 可能需要多次重试
+
 ---
 
 ## 3. 项目结构
@@ -188,11 +194,10 @@ knowbase/
 # 1. 启动数据库
 docker compose up -d
 
-# 2. 后端（需要先配置 Alembic + 安装依赖）
+# 2. 后端（使用 Python 3.12 venv）
 cd backend
-pip install -e ".[ai,dev]"
-alembic upgrade head
-uvicorn app.main:app --reload --port 8000
+# 虚拟环境在 D:\Python\venvs\knowbase（Python 3.12）
+D:/Python/venvs/knowbase/Scripts/python.exe -m uvicorn app.main:app --reload --port 8000
 
 # 3. 前端
 cd frontend
@@ -203,25 +208,63 @@ npm run dev   # http://localhost:5173
 **数据库连接**（默认）：
 - Host: localhost, Port: 5433
 - User: knowbase, Password: knowbase123, DB: knowbase
+- 容器名：`knowbase-postgres`
+
+**环境路径**：
+- Python 3.12：`C:\Users\25128\AppData\Local\Programs\Python\Python312\`
+- 系统默认 Python 是 3.9（**不能用**，版本太低）
+- 虚拟环境：`D:\Python\venvs\knowbase`（Python 3.12）
+- Docker WSL 数据：`D:\DockerData\wsl`（从 C 盘迁移过）
+
+**注意**：
+- `alembic.ini` 不能有中文注释（Windows GBK 编码会报 UnicodeDecodeError）
+- 运行后端**必须用 venv 的 python**：`D:/Python/venvs/knowbase/Scripts/python.exe`
 
 ---
 
 ## 7. 当前进度 & 路线图
 
-### Phase 1 — 基础功能（当前）
+### Phase 1 — 基础功能 ✅ 已完成
 - [x] 项目结构搭建
 - [x] 后端：数据模型 + CRUD API + 统一响应格式
 - [x] 前端：侧边栏布局 + 路由 + 笔记列表/编辑页
-- [x] Docker 数据库配置
-- [ ] Alembic 数据库迁移配置
-- [ ] 端到端联调验证
-- [ ] 首次 Git 提交 + GitHub 远程仓库
+- [x] Docker 数据库配置（Docker Desktop 4.75，数据已迁移至 D:\DockerData）
+- [x] Alembic 数据库迁移配置（异步模式 env.py，首次迁移已执行）
+- [x] Python 虚拟环境（Python 3.12 @ D:\Python\venvs\knowbase）
+- [x] 依赖安装（含 ai/dev extras：langchain, pgvector, pytest 等）
+- [x] 端到端联调验证（全部 CRUD 接口通过）
+- [x] 首次 Git 提交 + GitHub 远程仓库（https://github.com/XyYpower/xyy.git）
 
-### Phase 2 — AI 功能
-- [ ] RAG 管线（文档切分 → Embedding → pgvector 存储）
-- [ ] AI 对话接口（基于笔记内容的问答）
-- [ ] 前端 Chat 页面实现
-- [ ] LLM 集成（DeepSeek / GLM / OpenAI 三选一）
+### Phase 2 — AI 学习功能（下一步）
+
+> 详细设计方案见 [Phase2-design.md](Phase2-design.md)
+> 产品定位：**"不背单词"式的编程知识学习工具**
+> 核心解决：AI 时代开发者不知道自己该学什么、怎么学
+> 分三个版本逐步交付：V2.1 → V2.2 → V2.3
+
+**V2.1 — 学习闭环 MVP（最核心）**
+- [ ] Users 模型 + JWT 认证（注册/登录/Token 刷新/数据隔离）
+- [ ] notes 表新增 user_id / mastery_level / source_type 字段
+- [ ] review_cards + review_records 模型（SM-2 状态在 card 上，非 note）
+- [ ] SM-2 算法 + 复习服务
+- [ ] LLM 客户端工厂 + AI 卡片生成
+- [ ] Review API（含卡片编辑/反馈）
+- [ ] 前端 Auth + Review UI + Dashboard 基础版
+
+**V2.2 — AI 导入 + 学习路径**
+- [ ] import_jobs + extraction_drafts（草稿确认流程）
+- [ ] AI 提取知识点（文本/URL/代码）
+- [ ] learning_paths 模型 + AI 生成路径
+- [ ] 前端 Import UI（草稿勾选确认）+ Paths UI
+
+**V2.3 — RAG 对话 + 模拟面试**
+- [ ] note_chunks（分块 + pgvector 向量嵌入）
+- [ ] RAG 管线 + AI 对话（SSE 流式）
+- [ ] interview_sessions + interview_questions（多题面试）
+- [ ] AI 面试官（出题 + 评分 + 总结）
+- [ ] 薄弱知识点分析
+- [ ] 数据导出（JSON / Markdown / Anki CSV）
+- [ ] 前端 Chat + Interview + Settings + Dashboard 完整版
 
 ### Phase 3 — 增强
 - [ ] Markdown / 富文本编辑器
@@ -254,14 +297,15 @@ npm run dev   # http://localhost:5173
 
 ## 9. 已知问题 & 注意事项
 
-1. **Alembic 未配置** — `alembic/` 目录为空，需要初始化并生成首次迁移
-2. **编辑器简陋** — NoteDetail 使用原生 `<textarea>`，非 Markdown 编辑器
-3. **react-markdown 未使用** — 已声明依赖但未引入
-4. **zustand 未使用** — 已声明依赖但没有 store 文件
-5. **App.css 残留** — 仍是 Vite 模板默认样式
-6. **分类/标签管理不完整** — 后端只读接口，前端无管理 UI
-7. **无认证系统** — 当前无用户体系
-8. **无测试** — `tests/` 目录为空
+1. **编辑器简陋** — NoteDetail 使用原生 `<textarea>`，非 Markdown 编辑器
+2. **react-markdown 未使用** — 已声明依赖但未引入
+3. **zustand 未使用** — 已声明依赖但没有 store 文件
+4. **App.css 残留** — 仍是 Vite 模板默认样式
+5. **分类/标签管理不完整** — 后端只读接口，前端无管理 UI
+6. **无认证系统** — 当前无用户体系
+7. **无测试** — `tests/` 目录为空
+8. **GitHub 网络不稳定** — 国内访问 GitHub 需多次重试 git push
+9. **alembic.ini 不能有中文注释** — Windows GBK 编码问题，会报 UnicodeDecodeError
 
 ---
 
@@ -271,3 +315,6 @@ npm run dev   # http://localhost:5173
 |------|------|
 | 2026-06-01 | 初始项目上下文文档创建 |
 | 2026-06-01 | 修正一致性：Python 版本统一 >=3.11；tag 筛选参数改为 tag_id (UUID)；补充多 Agent Git 协作规则 |
+| 2026-06-01 | Phase 1 完成：Alembic 配置 + 迁移执行 + Docker 数据库启动 + 全部 CRUD 接口验证通过 + 前后端联调成功 |
+| 2026-06-01 | Phase 2 产品升级：从通用笔记工具升级为"不背单词"式编程学习产品，新增间隔复习 + AI 模拟面试 + 学习仪表盘 |
+| 2026-06-01 | Phase 2 设计优化：整合 Codex 反馈 — SM-2 状态移到 card、面试拆 session+question、导入加草稿确认、新增 ai_call_logs + note_chunks、分三个版本交付（V2.1/V2.2/V2.3） |

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Button, Input, Tag, Space, message } from 'antd'
+import { Button, Input, Tag, message } from 'antd'
 import { ArrowLeftOutlined, SaveOutlined } from '@ant-design/icons'
 import { noteApi, type Note } from '../api/notes'
 
