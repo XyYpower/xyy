@@ -58,15 +58,15 @@ export default function Notes() {
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold m-0">笔记</h2>
+        <h2 className="text-2xl font-bold m-0">知识点</h2>
         <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
-          新建笔记
+          新建知识点
         </Button>
       </div>
 
       <div className="mb-4 flex gap-2">
         <Input
-          placeholder="搜索笔记..."
+          placeholder="搜索知识点..."
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
           onPressEnter={handleSearch}
@@ -77,7 +77,7 @@ export default function Notes() {
       </div>
 
       {notes.length === 0 && !loading ? (
-        <Empty description="还没有笔记，点击上方按钮创建" />
+        <Empty description="还没有知识点，点击上方按钮创建" />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {notes.map((note) => (
@@ -110,6 +110,9 @@ export default function Notes() {
               </div>
               <div className="mt-2 text-xs text-gray-400">
                 {new Date(note.updated_at).toLocaleDateString()}
+                <span className="ml-2">
+                  {note.mastery_level === 2 ? '已掌握' : note.mastery_level === 1 ? '学习中' : '未学'}
+                </span>
               </div>
             </Card>
           ))}

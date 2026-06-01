@@ -132,11 +132,24 @@ knowbase/
 | DELETE | `/notes/{id}` | 删除笔记 | ✅ |
 | GET | `/tags` | 标签列表 | ✅ |
 | GET | `/categories` | 分类列表 | ✅ |
+| POST | `/auth/register` | 用户注册并返回 Token | ✅ |
+| POST | `/auth/login` | 用户登录并返回 Token | ✅ |
+| POST | `/auth/refresh` | 刷新 access token | ✅ |
+| GET | `/auth/me` | 当前用户信息 | ✅ |
+| GET | `/review/today` | 今日待复习卡片 | ✅ |
+| GET | `/review/cards/{note_id}` | 获取知识点复习卡片 | ✅ |
+| POST | `/review/submit` | 提交复习评分并更新 SM-2 状态 | ✅ |
+| GET | `/review/stats` | 复习统计 | ✅ |
+| POST | `/review/generate/{note_id}` | 为知识点生成复习卡片 | ✅ |
+| PUT | `/review/cards/{card_id}` | 编辑复习卡片 | ✅ |
+| POST | `/review/cards/{card_id}/flag` | 标记卡片质量问题 | ✅ |
 
 **查询参数**（GET /notes）：
 - `keyword` — 标题/内容模糊搜索（str, 可选）
 - `category_id` — 按分类 UUID 筛选（UUID, 可选）
 - `tag_id` — 按标签 UUID 筛选（UUID, 可选）
+- `mastery_level` — 按掌握度筛选（0=未学, 1=学习中, 2=已掌握）
+- `source_type` — 按来源筛选（manual / imported / ai_generated）
 - `page` / `page_size` — 分页（默认 1 / 20）
 
 **统一响应格式**：
@@ -156,13 +169,28 @@ knowbase/
 | 列名 | 类型 | 说明 |
 |------|------|------|
 | id | UUID (PK) | 主键 |
+| user_id | UUID (FK) | 所属用户 |
 | title | VARCHAR(200) | 标题 |
 | content | TEXT | 正文 |
 | summary | TEXT | 摘要（Phase 2 AI 生成） |
 | category_id | UUID (FK) | 所属分类 |
 | is_favorite | BOOLEAN | 是否收藏 |
+| mastery_level | INTEGER | 掌握度：0=未学, 1=学习中, 2=已掌握 |
+| source_type | VARCHAR(20) | 来源：manual / imported / ai_generated |
+| source_url | TEXT | 来源 URL |
 | created_at | TIMESTAMP | 创建时间 |
 | updated_at | TIMESTAMP | 更新时间 |
+
+### users 表
+| 列名 | 类型 | 说明 |
+|------|------|------|
+| id | UUID (PK) | 主键 |
+| username | VARCHAR(50) UNIQUE | 用户名 |
+| email | VARCHAR(100) UNIQUE | 邮箱（可选） |
+| password_hash | VARCHAR(200) | bcrypt 密码哈希 |
+| reminder_enabled | BOOLEAN | 是否开启复习提醒 |
+| reminder_time | TIME | 每日提醒时间 |
+| created_at | TIMESTAMP | 注册时间 |
 
 ### categories 表
 | 列名 | 类型 | 说明 |
@@ -185,6 +213,31 @@ knowbase/
 |------|------|
 | note_id | UUID (FK) |
 | tag_id | UUID (FK) |
+
+### review_cards 表
+| 列名 | 类型 | 说明 |
+|------|------|------|
+| id | UUID (PK) | 主键 |
+| note_id | UUID (FK) | 关联知识点 |
+| card_type | VARCHAR(20) | concept / code / scenario |
+| question | TEXT | 卡片正面问题 |
+| answer | TEXT | 卡片背面答案 |
+| next_review_at | TIMESTAMP | 下次复习时间 |
+| ease_factor | FLOAT | SM-2 难度因子 |
+| interval_days | INTEGER | 当前间隔天数 |
+| review_count | INTEGER | 复习次数 |
+| last_reviewed_at | TIMESTAMP | 上次复习时间 |
+| is_user_edited | BOOLEAN | 是否用户编辑过 |
+| is_flagged | BOOLEAN | 是否标记质量问题 |
+| created_at | TIMESTAMP | 创建时间 |
+
+### review_records 表
+| 列名 | 类型 | 说明 |
+|------|------|------|
+| id | UUID (PK) | 主键 |
+| card_id | UUID (FK) | 复习卡片 |
+| quality | INTEGER | 评分：0-5 |
+| reviewed_at | TIMESTAMP | 复习时间 |
 
 ---
 
@@ -243,13 +296,13 @@ npm run dev   # http://localhost:5173
 > 分三个版本逐步交付：V2.1 → V2.2 → V2.3
 
 **V2.1 — 学习闭环 MVP（最核心）**
-- [ ] Users 模型 + JWT 认证（注册/登录/Token 刷新/数据隔离）
-- [ ] notes 表新增 user_id / mastery_level / source_type 字段
-- [ ] review_cards + review_records 模型（SM-2 状态在 card 上，非 note）
-- [ ] SM-2 算法 + 复习服务
-- [ ] LLM 客户端工厂 + AI 卡片生成
-- [ ] Review API（含卡片编辑/反馈）
-- [ ] 前端 Auth + Review UI + Dashboard 基础版
+- [x] Users 模型 + JWT 认证（注册/登录/Token 刷新/数据隔离）
+- [x] notes 表新增 user_id / mastery_level / source_type 字段
+- [x] review_cards + review_records 模型（SM-2 状态在 card 上，非 note）
+- [x] SM-2 算法 + 复习服务
+- [x] LLM 客户端工厂 + AI 卡片生成（无 API key 时本地兜底生成）
+- [x] Review API（含卡片编辑/反馈）
+- [x] 前端 Auth + Review UI + Dashboard 基础版
 
 **V2.2 — AI 导入 + 学习路径**
 - [ ] import_jobs + extraction_drafts（草稿确认流程）
@@ -271,7 +324,7 @@ npm run dev   # http://localhost:5173
 - [ ] 分类管理 UI（增删改）
 - [ ] 标签编辑 UI（添加/移除）
 - [ ] 收藏功能 UI
-- [ ] 用户认证
+- [ ] 账号设置增强（提醒时间、密码修改、资料维护）
 
 ---
 
@@ -299,11 +352,11 @@ npm run dev   # http://localhost:5173
 
 1. **编辑器简陋** — NoteDetail 使用原生 `<textarea>`，非 Markdown 编辑器
 2. **react-markdown 未使用** — 已声明依赖但未引入
-3. **zustand 未使用** — 已声明依赖但没有 store 文件
-4. **App.css 残留** — 仍是 Vite 模板默认样式
-5. **分类/标签管理不完整** — 后端只读接口，前端无管理 UI
-6. **无认证系统** — 当前无用户体系
-7. **无测试** — `tests/` 目录为空
+3. **App.css 残留** — 仍是 Vite 模板默认样式
+4. **分类/标签管理不完整** — 后端只读接口，前端无管理 UI
+5. **测试覆盖仍少** — 当前只覆盖 Auth / SM-2 / 卡片生成核心单元
+6. **V2.1 卡片生成有本地兜底** — 未配置 LLM API key 时不会真实调用 AI
+7. **前端构建体积偏大** — 当前 Vite build 有 chunk size 警告，后续可做动态导入
 8. **GitHub 网络不稳定** — 国内访问 GitHub 需多次重试 git push
 9. **alembic.ini 不能有中文注释** — Windows GBK 编码问题，会报 UnicodeDecodeError
 
@@ -318,3 +371,4 @@ npm run dev   # http://localhost:5173
 | 2026-06-01 | Phase 1 完成：Alembic 配置 + 迁移执行 + Docker 数据库启动 + 全部 CRUD 接口验证通过 + 前后端联调成功 |
 | 2026-06-01 | Phase 2 产品升级：从通用笔记工具升级为"不背单词"式编程学习产品，新增间隔复习 + AI 模拟面试 + 学习仪表盘 |
 | 2026-06-01 | Phase 2 设计优化：整合 Codex 反馈 — SM-2 状态移到 card、面试拆 session+question、导入加草稿确认、新增 ai_call_logs + note_chunks、分三个版本交付（V2.1/V2.2/V2.3） |
+| 2026-06-01 | V2.1 完成：JWT 认证、用户数据隔离、复习卡片、SM-2 调度、Review API、前端登录/注册/复习/Dashboard 基础版 |

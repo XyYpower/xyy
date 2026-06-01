@@ -8,6 +8,9 @@ export interface Note {
   category: { id: string; name: string } | null
   tags: { id: string; name: string }[]
   is_favorite: boolean
+  mastery_level: number
+  source_type: string
+  source_url: string | null
   created_at: string
   updated_at: string
 }
@@ -26,7 +29,7 @@ export interface ApiResponse<T> {
 }
 
 export const noteApi = {
-  list: (params?: { page?: number; page_size?: number; keyword?: string }) =>
+  list: (params?: { page?: number; page_size?: number; keyword?: string; mastery_level?: number; source_type?: string }) =>
     client.get<any, ApiResponse<PageResult<Note>>>('/notes', { params }),
 
   get: (id: string) =>

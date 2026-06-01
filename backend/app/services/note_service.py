@@ -5,33 +5,43 @@ from sqlalchemy.orm import selectinload
 
 from app.models.note import Note, Category, Tag, note_tags
 from app.schemas.note import NoteCreate, NoteUpdate
+from app.services import review_service
 
 
-async def create_note(db: AsyncSession, data: NoteCreate) -> Note:
+async def create_note(db: AsyncSession, data: NoteCreate, user_id: uuid.UUID) -> Note:
     tags = await _get_or_create_tags(db, data.tag_names)
     note = Note(
+        user_id=user_id,
         title=data.title,
         content=data.content,
         summary=data.summary,
         category_id=data.category_id,
         is_favorite=data.is_favorite,
+        mastery_level=data.mastery_level,
+        source_type=data.source_type,
+        source_url=data.source_url,
         tags=tags,
     )
     db.add(note)
     await db.flush()
+    await db.refresh(note)
+    await review_service.generate_cards_for_note(db, user_id, note.id)
     await db.refresh(note)
     return note
 
 
 async def get_notes(
     db: AsyncSession,
+    user_id: uuid.UUID,
     page: int = 1,
     page_size: int = 20,
     keyword: str | None = None,
     category_id: uuid.UUID | None = None,
     tag_id: uuid.UUID | None = None,
+    mastery_level: int | None = None,
+    source_type: str | None = None,
 ) -> tuple[list[Note], int]:
-    query = select(Note).options(selectinload(Note.category), selectinload(Note.tags))
+    query = select(Note).options(selectinload(Note.category), selectinload(Note.tags)).where(Note.user_id == user_id)
 
     if keyword:
         query = query.where(or_(
@@ -42,6 +52,10 @@ async def get_notes(
         query = query.where(Note.category_id == category_id)
     if tag_id:
         query = query.join(note_tags).where(note_tags.c.tag_id == tag_id)
+    if mastery_level is not None:
+        query = query.where(Note.mastery_level == mastery_level)
+    if source_type:
+        query = query.where(Note.source_type == source_type)
 
     count_query = select(func.count()).select_from(query.subquery())
     total = (await db.execute(count_query)).scalar() or 0
@@ -51,11 +65,11 @@ async def get_notes(
     return result.unique().scalars().all(), total
 
 
-async def get_note(db: AsyncSession, note_id: uuid.UUID) -> Note | None:
+async def get_note(db: AsyncSession, note_id: uuid.UUID, user_id: uuid.UUID) -> Note | None:
     result = await db.execute(
         select(Note)
         .options(selectinload(Note.category), selectinload(Note.tags))
-        .where(Note.id == note_id)
+        .where(Note.id == note_id, Note.user_id == user_id)
     )
     return result.unique().scalar_one_or_none()
 
