@@ -2,7 +2,7 @@
 name = "knowbase"
 version = "0.1.0"
 description = "AI-powered knowledge base for learning"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.0",

@@ -128,10 +128,10 @@ knowbase/
 | GET | `/categories` | 分类列表 | ✅ |
 
 **查询参数**（GET /notes）：
-- `keyword` — 标题/内容模糊搜索
-- `category_id` — 按分类筛选
-- `tag_id` — 按标签筛选
-- `page` / `page_size` — 分页
+- `keyword` — 标题/内容模糊搜索（str, 可选）
+- `category_id` — 按分类 UUID 筛选（UUID, 可选）
+- `tag_id` — 按标签 UUID 筛选（UUID, 可选）
+- `page` / `page_size` — 分页（默认 1 / 20）
 
 **统一响应格式**：
 ```json
@@ -270,3 +270,4 @@ npm run dev   # http://localhost:5173
 | 日期 | 内容 |
 |------|------|
 | 2026-06-01 | 初始项目上下文文档创建 |
+| 2026-06-01 | 修正一致性：Python 版本统一 >=3.11；tag 筛选参数改为 tag_id (UUID)；补充多 Agent Git 协作规则 |

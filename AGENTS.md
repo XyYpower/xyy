@@ -36,6 +36,12 @@ KnowBase — AI 驱动的个人知识库。FastAPI 后端 + React 前端 + Postg
 - Commit message 使用英文，格式：`feat: / fix: / docs: / chore:`
 - 功能开发应在独立分支 `feature/xxx` 上进行
 
+### 多 Agent 协作
+- 开始任务前先 `git status`，确认是否有其他 Agent 未提交的修改
+- 如果有未提交的修改，先阅读理解再继续，**不要覆盖未理解的改动**
+- 每次完成重要阶段后，更新 `docs/CONTEXT.md` 中对应章节（进度、已知问题、更新日志）
+- 如果修改了 API 接口或数据库结构，同步更新 `docs/CONTEXT.md` 中的 API 端点和 Schema 章节
+
 ### 测试
 - 后端测试放在 `backend/tests/`
 - 前端暂无测试要求，后续按需添加

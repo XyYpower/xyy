@@ -29,7 +29,7 @@ async def get_notes(
     page_size: int = 20,
     keyword: str | None = None,
     category_id: uuid.UUID | None = None,
-    tag: str | None = None,
+    tag_id: uuid.UUID | None = None,
 ) -> tuple[list[Note], int]:
     query = select(Note).options(selectinload(Note.category), selectinload(Note.tags))
 
@@ -40,8 +40,8 @@ async def get_notes(
         ))
     if category_id:
         query = query.where(Note.category_id == category_id)
-    if tag:
-        query = query.join(note_tags).join(Tag).where(Tag.name == tag)
+    if tag_id:
+        query = query.join(note_tags).where(note_tags.c.tag_id == tag_id)
 
     count_query = select(func.count()).select_from(query.subquery())
     total = (await db.execute(count_query)).scalar() or 0

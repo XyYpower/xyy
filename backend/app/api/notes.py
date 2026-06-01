@@ -17,10 +17,10 @@ async def list_notes(
     page_size: int = Query(20, ge=1, le=100),
     keyword: str | None = None,
     category_id: uuid.UUID | None = None,
-    tag: str | None = None,
+    tag_id: uuid.UUID | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    notes, total = await note_service.get_notes(db, page, page_size, keyword, category_id, tag)
+    notes, total = await note_service.get_notes(db, page, page_size, keyword, category_id, tag_id)
     return success(PageResult(
         items=[NoteListItem.model_validate(n) for n in notes],
         total=total,
