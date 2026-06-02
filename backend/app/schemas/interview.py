@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 
 class InterviewStartRequest(BaseModel):
@@ -16,6 +16,7 @@ class AnswerSubmitRequest(BaseModel):
 class InterviewQuestionOut(BaseModel):
     id: uuid.UUID
     question: str
+    reference_answer: str | None = None
     user_answer: str | None = None
     ai_score: int | None = None
     ai_feedback: str | None = None
@@ -36,6 +37,13 @@ class InterviewSessionOut(BaseModel):
     questions: list[InterviewQuestionOut] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
+
+    @computed_field
+    @property
+    def score_percent(self) -> int | None:
+        if self.total_score is None or not self.questions:
+            return None
+        return round((self.total_score / (len(self.questions) * 10)) * 100)
 
 
 class WeakPointOut(BaseModel):

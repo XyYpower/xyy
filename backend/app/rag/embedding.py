@@ -17,21 +17,31 @@ class EmbeddingClient:
     model: str
 
     async def embed(self, text: str) -> list[float]:
+        return (await self.embed_many([text]))[0]
+
+    async def embed_many(self, texts: list[str]) -> list[list[float]]:
+        if not texts:
+            return []
         if not self.api_key:
-            return fallback_embedding(text)
+            return [fallback_embedding(text) for text in texts]
 
         async with httpx.AsyncClient(timeout=30) as client:
             response = await client.post(
                 f"{self.base_url.rstrip('/')}/embeddings",
                 headers={"Authorization": f"Bearer {self.api_key}"},
-                json={"model": self.model, "input": text[:8000]},
+                json={"model": self.model, "input": [text[:8000] for text in texts]},
             )
             response.raise_for_status()
-        return response.json()["data"][0]["embedding"][:EMBEDDING_DIMENSIONS]
+        data = sorted(response.json()["data"], key=lambda item: item.get("index", 0))
+        return [item["embedding"][:EMBEDDING_DIMENSIONS] for item in data]
 
 
 async def embed_text(text: str) -> list[float]:
     return await get_embedding_client().embed(text)
+
+
+async def embed_texts(texts: list[str]) -> list[list[float]]:
+    return await get_embedding_client().embed_many(texts)
 
 
 def get_embedding_client(provider: str | None = None) -> EmbeddingClient:

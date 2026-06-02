@@ -1,5 +1,5 @@
-from sqlalchemy import LargeBinary
 from sqlalchemy.dialects.postgresql import JSONB
+from pgvector.sqlalchemy import VECTOR
 
 from app.database import Base
 from app.models import Conversation, InterviewQuestion, InterviewSession, Message, NoteChunk
@@ -13,7 +13,7 @@ def test_note_chunk_table_is_registered():
     assert note_chunks.c.note_id.index is True
     assert note_chunks.c.chunk_index.nullable is False
     assert note_chunks.c.content_hash.type.length == 64
-    assert isinstance(note_chunks.c.embedding.type, LargeBinary)
+    assert isinstance(note_chunks.c.embedding.type, VECTOR)
     assert any(constraint.name == "uq_note_chunk_index" for constraint in note_chunks.constraints)
 
 

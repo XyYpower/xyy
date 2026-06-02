@@ -1,8 +1,8 @@
 import json
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, Request
+from sse_starlette.sse import EventSourceResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -63,6 +63,7 @@ async def delete_conversation(
 
 @router.post("/conversations/{conversation_id}/chat")
 async def chat(
+    request: Request,
     conversation_id: uuid.UUID,
     data: ChatRequest,
     current_user: User = Depends(get_current_user),
@@ -74,17 +75,15 @@ async def chat(
 
     async def event_generator():
         async for chunk in chat_service.chat_stream(db, current_user.id, conversation_id, data.query):
-            yield _sse({"content": chunk})
+            if await request.is_disconnected():
+                break
+            yield {"data": json.dumps({"content": chunk}, ensure_ascii=False)}
 
         sources = await chat_service.get_latest_assistant_sources(db, conversation_id)
-        yield _sse({"done": True, "sources": sources})
+        if not await request.is_disconnected():
+            yield {"data": json.dumps({"done": True, "sources": sources}, ensure_ascii=False)}
 
-    return StreamingResponse(
+    return EventSourceResponse(
         event_generator(),
-        media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
-
-
-def _sse(data: dict) -> str:
-    return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"

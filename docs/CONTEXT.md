@@ -496,7 +496,7 @@ npm run dev   # http://localhost:5173
 
 **V2.3 验证结果**
 - [x] Alembic 当前版本：`e2b1a0d9c6f4 (head)`
-- [x] 后端测试：`D:\Python\venvs\knowbase\Scripts\python.exe -m pytest -q` → 43 passed
+- [x] 后端测试：`D:\Python\venvs\knowbase\Scripts\python.exe -m pytest -q` → 48 passed
 - [x] 前端构建：`npm run build` → 通过（仍有 Vite chunk size 警告）
 
 ### Phase 3 — 增强
@@ -543,7 +543,7 @@ npm run dev   # http://localhost:5173
 11. **V2.2 导入/路径有本地兜底** — 未配置 LLM API key 时不会真实调用 AI，会用规则拆段落和预设学习路径模板
 12. **URL 导入是 MVP 抓取** — 当前用 `httpx` + 简单 HTML 去标签，并做基础 SSRF 防护（仅 http/https、拒绝 userinfo、拒绝非公网地址、跳转后重新校验）；复杂反爬、登录态页面、动态渲染页面后续再增强
 13. **前端构建体积继续偏大** — V2.3 引入 Chat/Interview/Markdown 后主 chunk 约 1.5MB，后续可用路由级动态导入拆分
-14. **SSE 使用 StreamingResponse** — 后端已声明 `sse-starlette` 依赖，但当前实现用 FastAPI `StreamingResponse` 输出 `text/event-stream`，减少本地依赖安装阻塞
+14. **SSE 使用 EventSourceResponse** — V2.3 Review 后已切换到 `sse-starlette`，并在流式输出时检查客户端断连，减少页面关闭后继续消耗 LLM API 的风险
 15. **Embedding 兜底不是语义向量** — 未配置 Embedding API key 时使用确定性 hash 向量，只保证流程可跑通，真实检索效果需要配置 OpenAI/GLM 等 embedding 服务
 
 ---
@@ -563,3 +563,4 @@ npm run dev   # http://localhost:5173
 | 2026-06-02 | V2.2 完成：新增 AI 导入（文本/URL/代码）、提取草稿确认、批量生成知识点和复习卡片、学习路径生成、Import/Paths 前端页面；后端 20 个测试通过，前端构建通过 |
 | 2026-06-02 | V2.2 Review 加固：URL 导入增加基础 SSRF 防护；确认导入改为先落库、后台生成复习卡片并记录失败；学习路径 modules 增加 schema 校验；前端批量勾选支持部分失败状态同步；后端测试增至 27 个 |
 | 2026-06-02 | V2.3 完成：新增 note_chunks + pgvector 检索、RAG Chat SSE、AI 模拟面试、薄弱点分析、JSON/Markdown/Anki 导出、Chat/Interview/Settings/Dashboard 前端；后端 43 个测试通过，前端构建通过 |
+| 2026-06-02 | V2.3 Review 加固：修复 SSE 中途失败混合 fallback、断连检测、对话更新时间、列表消息预加载、嵌入原子替换/并发生成、pgvector ORM 类型、前端流式错误状态、面试参考答案和归一化分数；后端测试增至 48 个 |

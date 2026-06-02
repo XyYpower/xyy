@@ -143,6 +143,17 @@ export default function Chat() {
         fetchConversations()
       },
       onError: (error) => {
+        setMessages((current) =>
+          current.map((item) =>
+            item.id === assistantMessage.id
+              ? {
+                  ...item,
+                  content: `发送失败：${error.message}`,
+                  sources: null,
+                }
+              : item,
+          ),
+        )
         message.error(error.message)
       },
     })

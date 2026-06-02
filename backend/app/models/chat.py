@@ -1,9 +1,10 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, LargeBinary, String, Text, UniqueConstraint, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from pgvector.sqlalchemy import VECTOR
 
 from app.database import Base
 
@@ -60,7 +61,7 @@ class NoteChunk(Base):
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     chunk_text: Mapped[str] = mapped_column(Text, nullable=False)
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
-    embedding: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(VECTOR(1536), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     note: Mapped["Note"] = relationship("Note")  # noqa: F821

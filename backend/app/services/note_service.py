@@ -117,29 +117,32 @@ def split_note_text(text: str, max_chunk_size: int = 500) -> list[str]:
 
 
 async def embed_note(db: AsyncSession, note: Note) -> None:
-    await db.execute(delete(NoteChunk).where(NoteChunk.note_id == note.id))
-    await db.flush()
-
     source_text = f"{note.title}\n\n{note.content}".strip()
     chunks = split_note_text(source_text)
-    for index, chunk_text in enumerate(chunks):
-        vector = await embedding.embed_text(chunk_text)
-        await db.execute(
-            text(
-                """
-                INSERT INTO note_chunks (id, note_id, chunk_index, chunk_text, content_hash, embedding)
-                VALUES (:id, :note_id, :chunk_index, :chunk_text, :content_hash, CAST(:embedding AS vector))
-                """
-            ),
-            {
-                "id": uuid.uuid4(),
-                "note_id": note.id,
-                "chunk_index": index,
-                "chunk_text": chunk_text,
-                "content_hash": hashlib.sha256(chunk_text.encode("utf-8")).hexdigest(),
-                "embedding": embedding.vector_to_sql(vector),
-            },
-        )
+
+    vectors = await embedding.embed_texts(chunks)
+
+    async with db.begin_nested():
+        await db.execute(delete(NoteChunk).where(NoteChunk.note_id == note.id))
+        await db.flush()
+
+        for index, (chunk_text, vector) in enumerate(zip(chunks, vectors, strict=True)):
+            await db.execute(
+                text(
+                    """
+                    INSERT INTO note_chunks (id, note_id, chunk_index, chunk_text, content_hash, embedding)
+                    VALUES (:id, :note_id, :chunk_index, :chunk_text, :content_hash, CAST(:embedding AS vector))
+                    """
+                ),
+                {
+                    "id": uuid.uuid4(),
+                    "note_id": note.id,
+                    "chunk_index": index,
+                    "chunk_text": chunk_text,
+                    "content_hash": hashlib.sha256(chunk_text.encode("utf-8")).hexdigest(),
+                    "embedding": embedding.vector_to_sql(vector),
+                },
+            )
     await db.flush()
 
 

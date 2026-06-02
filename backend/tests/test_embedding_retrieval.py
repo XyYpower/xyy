@@ -1,5 +1,4 @@
 import uuid
-
 import pytest
 from sqlalchemy import delete, select, text
 
@@ -110,3 +109,69 @@ async def test_create_note_generates_chunks_and_search_is_user_scoped(monkeypatc
     finally:
         await _cleanup_user(owner_username)
         await _cleanup_user(other_username)
+
+
+async def test_embed_note_replaces_chunks_after_all_embeddings_succeed(monkeypatch):
+    await _require_database()
+    username = f"embed_atomic_{uuid.uuid4().hex[:10]}"
+    calls: list[str] = []
+
+    async def fake_embed_texts(text_values: list[str]):
+        calls.extend(text_values)
+        if any("失败段落" in text_value for text_value in text_values):
+            raise RuntimeError("embedding failed")
+        return [[0.01] * 1536 for _ in text_values]
+
+    monkeypatch.setattr(note_service.embedding, "embed_texts", fake_embed_texts)
+
+    try:
+        user = await _create_user(username)
+        async with async_session() as session:
+            note = await note_service.create_note(
+                session,
+                NoteCreate(title="稳定知识点", content="第一段成功。"),
+                user.id,
+            )
+            await session.commit()
+            note_id = note.id
+
+        async with async_session() as session:
+            note = await session.get(Note, note_id)
+            note.content = "第一段成功。\n\n失败段落。"
+            with pytest.raises(RuntimeError):
+                await note_service.embed_note(session, note)
+            await session.commit()
+
+        async with async_session() as session:
+            chunks = (await session.execute(select(NoteChunk).where(NoteChunk.note_id == note_id))).scalars().all()
+            assert len(chunks) == 1
+            assert "第一段成功" in chunks[0].chunk_text
+    finally:
+        await _cleanup_user(username)
+
+
+async def test_embed_note_embeds_chunks_in_one_batch(monkeypatch):
+    await _require_database()
+    username = f"embed_batch_{uuid.uuid4().hex[:10]}"
+    batches: list[list[str]] = []
+
+    async def fake_embed_texts(text_values: list[str]):
+        batches.append(text_values)
+        return [[0.01] * 1536 for _ in text_values]
+
+    monkeypatch.setattr(note_service.embedding, "embed_texts", fake_embed_texts)
+
+    try:
+        user = await _create_user(username)
+        async with async_session() as session:
+            await note_service.create_note(
+                session,
+                NoteCreate(title="并发嵌入", content="第一段" * 120 + "\n\n" + "第二段" * 120),
+                user.id,
+            )
+            await session.commit()
+
+        assert len(batches) == 1
+        assert len(batches[0]) == 2
+    finally:
+        await _cleanup_user(username)

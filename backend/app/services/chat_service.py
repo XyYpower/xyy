@@ -1,10 +1,11 @@
 import logging
 import uuid
 from collections.abc import AsyncGenerator
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import lazyload, selectinload
 
 from app.models.chat import Conversation, Message
 from app.models.note import Note
@@ -12,6 +13,10 @@ from app.rag import prompts, retrieval
 from app.rag.llm import get_llm
 
 logger = logging.getLogger(__name__)
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 async def create_conversation(
@@ -38,7 +43,7 @@ async def create_conversation(
 async def get_conversations(db: AsyncSession, user_id: uuid.UUID) -> list[Conversation]:
     result = await db.execute(
         select(Conversation)
-        .options(selectinload(Conversation.messages))
+        .options(lazyload(Conversation.messages))
         .where(Conversation.user_id == user_id)
         .order_by(Conversation.updated_at.desc(), Conversation.created_at.desc())
     )
@@ -79,6 +84,7 @@ async def chat_stream(
 
     if conversation.title == "新对话":
         conversation.title = query[:80]
+    conversation.updated_at = _utc_now()
 
     user_message = Message(conversation_id=conversation_id, role="user", content=query)
     db.add(user_message)
@@ -99,9 +105,10 @@ async def chat_stream(
                 full_answer += chunk
                 yield chunk
         except Exception as exc:
-            logger.warning("LLM chat stream failed, using fallback answer: %s", exc)
-            full_answer = _fallback_answer(query, contexts)
-            yield full_answer
+            logger.warning("LLM chat stream failed after %s chars: %s", len(full_answer), exc)
+            if not full_answer:
+                full_answer = _fallback_answer(query, contexts)
+                yield full_answer
 
     if not full_answer:
         full_answer = _fallback_answer(query, contexts)

@@ -1,7 +1,9 @@
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import delete, select, text
+from sqlalchemy import inspect
 
 from app.database import async_session
 from app.models.chat import Conversation, Message
@@ -158,5 +160,101 @@ async def test_chat_stream_uses_fallback_without_api_key(monkeypatch):
 
         assert chunks
         assert "没有找到" in "".join(chunks)
+    finally:
+        await _cleanup_users([username])
+
+
+async def test_chat_stream_does_not_mix_partial_llm_output_with_fallback(monkeypatch):
+    await _require_database()
+    username = f"chat_partial_{uuid.uuid4().hex[:10]}"
+
+    async def fake_search(*args, **kwargs):
+        return []
+
+    class BrokenLLM:
+        api_key = "test-key"
+
+        async def chat_stream(self, messages):
+            yield "半句回答"
+            raise RuntimeError("stream interrupted")
+
+    monkeypatch.setattr(chat_service.retrieval, "search_similar", fake_search)
+    monkeypatch.setattr(chat_service, "get_llm", lambda: BrokenLLM())
+
+    try:
+        user = await _create_user(username)
+
+        async with async_session() as session:
+            conversation = await chat_service.create_conversation(session, user.id)
+            chunks = [
+                chunk async for chunk in chat_service.chat_stream(session, user.id, conversation.id, "会失败的问题")
+            ]
+            await session.commit()
+            conversation_id = conversation.id
+
+        assert chunks == ["半句回答"]
+
+        async with async_session() as session:
+            assistant = (
+                await session.execute(
+                    select(Message).where(Message.conversation_id == conversation_id, Message.role == "assistant")
+                )
+            ).scalar_one()
+            assert assistant.content == "半句回答"
+    finally:
+        await _cleanup_users([username])
+
+
+async def test_get_conversations_does_not_eager_load_messages():
+    await _require_database()
+    username = f"chat_list_{uuid.uuid4().hex[:10]}"
+
+    try:
+        user = await _create_user(username)
+
+        async with async_session() as session:
+            conversation = await chat_service.create_conversation(session, user.id)
+            db_message = Message(conversation_id=conversation.id, role="user", content="历史消息")
+            session.add(db_message)
+            await session.commit()
+
+        async with async_session() as session:
+            conversations = await chat_service.get_conversations(session, user.id)
+            assert conversations
+            assert "messages" in inspect(conversations[0]).unloaded
+    finally:
+        await _cleanup_users([username])
+
+
+async def test_chat_stream_updates_conversation_updated_at(monkeypatch):
+    await _require_database()
+    username = f"chat_updated_{uuid.uuid4().hex[:10]}"
+
+    async def fake_search(*args, **kwargs):
+        return []
+
+    class NoKeyLLM:
+        api_key = ""
+
+    monkeypatch.setattr(chat_service.retrieval, "search_similar", fake_search)
+    monkeypatch.setattr(chat_service, "get_llm", lambda: NoKeyLLM())
+
+    try:
+        user = await _create_user(username)
+        old_time = datetime.now(UTC).replace(tzinfo=None) - timedelta(days=2)
+
+        async with async_session() as session:
+            conversation = await chat_service.create_conversation(session, user.id)
+            conversation.updated_at = old_time
+            await session.commit()
+            conversation_id = conversation.id
+
+        async with async_session() as session:
+            _ = [chunk async for chunk in chat_service.chat_stream(session, user.id, conversation_id, "更新时间")]
+            await session.commit()
+
+        async with async_session() as session:
+            conversation = await session.get(Conversation, conversation_id)
+            assert conversation.updated_at > old_time
     finally:
         await _cleanup_users([username])

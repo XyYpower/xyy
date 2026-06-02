@@ -81,6 +81,7 @@ async def test_interview_api_lifecycle_and_exports(monkeypatch):
             assert start_response.status_code == 200, start_response.text
             interview = start_response.json()["data"]
             assert len(interview["questions"]) == 2
+            assert interview["questions"][0]["reference_answer"] == "参考答案"
 
             first_question = interview["questions"][0]
             answer_response = await client.post(
@@ -96,6 +97,7 @@ async def test_interview_api_lifecycle_and_exports(monkeypatch):
             finished = finish_response.json()["data"]
             assert finished["status"] == "completed"
             assert finished["summary"] == "整体表现稳定，建议补充细节。"
+            assert finished["score_percent"] == 35
 
             sessions_response = await client.get("/api/v1/interview/sessions", headers=headers)
             assert sessions_response.status_code == 200, sessions_response.text
