@@ -15,7 +15,7 @@ from sqlalchemy.orm import selectinload
 from app.models.import_job import ExtractionDraft, ImportJob
 from app.models.note import Note
 from app.rag.extractor import extract_knowledge_points
-from app.services import review_service
+from app.services import note_service, review_service
 
 
 async def create_import_job(
@@ -120,6 +120,7 @@ async def confirm_import(db: AsyncSession, user_id: uuid.UUID, job_id: uuid.UUID
         db.add(note)
         await db.flush()
         await db.refresh(note)
+        await note_service.embed_note(db, note)
         draft.note_id = note.id
         notes.append(note)
 

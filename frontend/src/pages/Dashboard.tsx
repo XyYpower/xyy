@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button, Empty, Progress, Tag, Typography, message } from 'antd'
 import { useNavigate } from 'react-router-dom'
-import { noteApi, type Note } from '../api/notes'
-import { reviewApi, type ReviewStats } from '../api/review'
+import type { Note } from '../api/notes'
+import type { ReviewStats } from '../api/review'
+import { getDashboardData } from '../api/dashboard'
+import type { InterviewSession } from '../api/interview'
 
 const { Title, Text } = Typography
 
@@ -10,16 +12,15 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const [stats, setStats] = useState<ReviewStats | null>(null)
   const [notes, setNotes] = useState<Note[]>([])
+  const [sessions, setSessions] = useState<InterviewSession[]>([])
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [statsRes, notesRes] = await Promise.all([
-          reviewApi.getStats(),
-          noteApi.list({ page: 1, page_size: 5 }),
-        ])
-        setStats(statsRes.data)
-        setNotes(notesRes.data.items)
+        const data = await getDashboardData()
+        setStats(data.stats)
+        setNotes(data.notes)
+        setSessions(data.sessions.slice(0, 3))
       } catch {
         message.error('加载概览失败')
       }
@@ -32,6 +33,19 @@ export default function Dashboard() {
     [stats],
   )
   const masteredPercent = totalNotes ? Math.round(((stats?.mastered_count ?? 0) / totalNotes) * 100) : 0
+  const chartData = useMemo(
+    () => [
+      stats?.new_count ?? 0,
+      stats?.learning_count ?? 0,
+      stats?.mastered_count ?? 0,
+      stats?.due_today ?? 0,
+      sessions.length,
+      sessions.filter((session) => session.status === 'completed').length,
+      stats?.total_cards ?? 0,
+    ],
+    [sessions, stats],
+  )
+  const chartMax = Math.max(...chartData, 1)
 
   return (
     <div>
@@ -78,6 +92,26 @@ export default function Dashboard() {
         </div>
 
         <div className="bg-white border border-gray-200 rounded-lg p-5">
+          <Title level={4}>学习曲线</Title>
+          <div className="h-44 flex items-end gap-3 border-b border-gray-100 pb-3">
+            {chartData.map((value, index) => (
+              <div key={index} className="flex-1 flex flex-col items-center gap-2">
+                <div
+                  className="w-full rounded-t bg-blue-500/80 min-h-2"
+                  style={{ height: `${Math.max(8, (value / chartMax) * 140)}px` }}
+                />
+                <span className="text-xs text-gray-500">{value}</span>
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 text-xs text-gray-500 mt-2 text-center">
+            {['未学', '学习', '掌握', '待复习', '面试', '完成', '卡片'].map((label) => (
+              <span key={label}>{label}</span>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-lg p-5">
           <Title level={4}>最近知识点</Title>
           {notes.length === 0 ? (
             <Empty description="还没有知识点" />
@@ -102,8 +136,38 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+
+        <div className="bg-white border border-gray-200 rounded-lg p-5">
+          <div className="flex justify-between items-center mb-3">
+            <Title level={4} className="!mb-0">面试历史</Title>
+            <Button type="link" onClick={() => navigate('/interview')}>去面试</Button>
+          </div>
+          {sessions.length === 0 ? (
+            <Empty description="还没有面试记录" />
+          ) : (
+            <div className="space-y-3">
+              {sessions.map((session) => (
+                <button
+                  key={session.id}
+                  type="button"
+                  onClick={() => navigate('/interview')}
+                  className="w-full text-left border border-gray-100 rounded-md p-3 hover:border-blue-300"
+                >
+                  <div className="flex justify-between gap-3">
+                    <div className="font-medium truncate">{session.title}</div>
+                    <Tag color={session.status === 'completed' ? 'green' : 'gold'}>
+                      {session.status === 'completed' ? `${session.total_score ?? 0} 分` : '进行中'}
+                    </Tag>
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {new Date(session.created_at).toLocaleString()}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
 }
-

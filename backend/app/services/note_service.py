@@ -1,11 +1,14 @@
 import uuid
-from sqlalchemy import select, func, or_
+import hashlib
+from sqlalchemy import delete, select, func, or_, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.chat import NoteChunk
 from app.models.note import Note, Category, Tag, note_tags
 from app.schemas.note import NoteCreate, NoteUpdate
 from app.services import review_service
+from app.rag import embedding
 
 
 async def create_note(db: AsyncSession, data: NoteCreate, user_id: uuid.UUID) -> Note:
@@ -25,6 +28,7 @@ async def create_note(db: AsyncSession, data: NoteCreate, user_id: uuid.UUID) ->
     db.add(note)
     await db.flush()
     await db.refresh(note)
+    await embed_note(db, note)
     return note
 
 
@@ -82,11 +86,60 @@ async def update_note(db: AsyncSession, note: Note, data: NoteUpdate) -> Note:
 
     await db.flush()
     await db.refresh(note)
+    if any(field in update_data for field in ("title", "content")):
+        await embed_note(db, note)
     return note
 
 
 async def delete_note(db: AsyncSession, note: Note) -> None:
     await db.delete(note)
+    await db.flush()
+
+
+def split_note_text(text: str, max_chunk_size: int = 500) -> list[str]:
+    clean = text.strip()
+    if not clean:
+        return []
+    if len(clean) <= max_chunk_size:
+        return [clean]
+
+    chunks: list[str] = []
+    current = ""
+    for paragraph in [part.strip() for part in clean.split("\n\n") if part.strip()]:
+        if len(current) + len(paragraph) + 2 > max_chunk_size and current:
+            chunks.append(current.strip())
+            current = paragraph
+        else:
+            current = f"{current}\n\n{paragraph}" if current else paragraph
+    if current.strip():
+        chunks.append(current.strip())
+    return chunks
+
+
+async def embed_note(db: AsyncSession, note: Note) -> None:
+    await db.execute(delete(NoteChunk).where(NoteChunk.note_id == note.id))
+    await db.flush()
+
+    source_text = f"{note.title}\n\n{note.content}".strip()
+    chunks = split_note_text(source_text)
+    for index, chunk_text in enumerate(chunks):
+        vector = await embedding.embed_text(chunk_text)
+        await db.execute(
+            text(
+                """
+                INSERT INTO note_chunks (id, note_id, chunk_index, chunk_text, content_hash, embedding)
+                VALUES (:id, :note_id, :chunk_index, :chunk_text, :content_hash, CAST(:embedding AS vector))
+                """
+            ),
+            {
+                "id": uuid.uuid4(),
+                "note_id": note.id,
+                "chunk_index": index,
+                "chunk_text": chunk_text,
+                "content_hash": hashlib.sha256(chunk_text.encode("utf-8")).hexdigest(),
+                "embedding": embedding.vector_to_sql(vector),
+            },
+        )
     await db.flush()
 
 

@@ -70,7 +70,8 @@ knowbase/
 │   ├── CONTEXT.md         # 本文件 — 项目共享上下文
 │   ├── Phase2-design.md   # Phase 2 完整设计
 │   ├── V2.1-task.md       # V2.1 任务书（已完成）
-│   └── V2.2-task.md       # V2.2 任务书（已完成）
+│   ├── V2.2-task.md       # V2.2 任务书（已完成）
+│   └── V2.3-task.md       # V2.3 任务书（当前实现）
 ├── docker-compose.yml     # PostgreSQL + pgvector
 ├── .env.example           # 环境变量模板
 ├── .gitignore
@@ -91,6 +92,9 @@ knowbase/
 │       │   ├── imports.py # AI 导入 + 草稿确认
 │       │   ├── paths.py   # 学习路径
 │       │   ├── review.py  # 间隔复习
+│       │   ├── chat.py    # RAG 对话 + SSE
+│       │   ├── interview.py # AI 模拟面试
+│       │   ├── export.py  # 数据导出
 │       │   ├── tags.py    # 标签列表
 │       │   └── categories.py  # 分类列表
 │       ├── models/        # SQLAlchemy ORM 模型
@@ -99,24 +103,35 @@ knowbase/
 │       │   ├── review.py  # ReviewCard / ReviewRecord
 │       │   ├── import_job.py # ImportJob / ExtractionDraft
 │       │   ├── path.py    # LearningPath
-│       │   └── chat.py    # V2.3 对话预留
+│       │   ├── chat.py    # Conversation / Message / NoteChunk
+│       │   └── interview.py # InterviewSession / InterviewQuestion
 │       ├── schemas/       # Pydantic 请求/响应模型
 │       │   ├── common.py  # Response[T] / PageResult[T]
 │       │   ├── auth.py    # 认证相关 schema
 │       │   ├── note.py    # 笔记相关 schema
 │       │   ├── review.py  # 复习相关 schema
 │       │   ├── import_job.py # 导入相关 schema
-│       │   └── path.py    # 学习路径 schema
+│       │   ├── path.py    # 学习路径 schema
+│       │   ├── chat.py    # 对话 schema
+│       │   └── interview.py # 面试 schema
 │       ├── services/      # 业务逻辑层
 │       │   ├── auth_service.py
 │       │   ├── note_service.py
 │       │   ├── review_service.py
 │       │   ├── import_service.py
-│       │   └── path_service.py
+│       │   ├── path_service.py
+│       │   ├── chat_service.py
+│       │   ├── interview_service.py
+│       │   └── export_service.py
 │       ├── rag/           # LLM / RAG 相关能力
 │       │   ├── llm.py
 │       │   ├── card_generator.py
-│       │   └── extractor.py
+│       │   ├── extractor.py
+│       │   ├── embedding.py
+│       │   ├── retrieval.py
+│       │   ├── prompts.py
+│       │   ├── pipeline.py
+│       │   └── interviewer.py
 │       └── utils/
 │           └── response.py  # 响应工具函数
 │
@@ -135,7 +150,12 @@ knowbase/
         │   ├── notes.ts   # 笔记 API 客户端
         │   ├── review.ts  # 复习 API 客户端
         │   ├── import.ts  # 导入 API 客户端
-        │   └── paths.ts   # 学习路径 API 客户端
+        │   ├── paths.ts   # 学习路径 API 客户端
+        │   ├── chat.ts    # 对话 API 客户端
+        │   ├── streamClient.ts # SSE 流式请求
+        │   ├── interview.ts # 面试 API 客户端
+        │   ├── export.ts  # 导出下载
+        │   └── dashboard.ts # 仪表盘聚合请求
         ├── components/
         │   └── Layout.tsx # 侧边栏布局
         └── pages/
@@ -146,9 +166,11 @@ knowbase/
             ├── Review.tsx     # 间隔复习
             ├── Import.tsx     # AI 导入
             ├── Paths.tsx      # 学习路径
+            ├── Interview.tsx  # AI 模拟面试
+            ├── Settings.tsx   # 设置 + 数据导出
             ├── Login.tsx      # 登录
             ├── Register.tsx   # 注册
-            └── Chat.tsx       # AI 对话（V2.3 占位）
+            └── Chat.tsx       # AI 对话（RAG + SSE）
 ```
 
 ---
@@ -188,6 +210,20 @@ knowbase/
 | POST | `/paths/generate` | 根据学习目标生成学习路径 | ✅ |
 | GET | `/paths` | 当前用户学习路径列表 | ✅ |
 | GET | `/paths/{path_id}` | 学习路径详情 | ✅ |
+| GET | `/chat/conversations` | 当前用户对话列表 | ✅ |
+| POST | `/chat/conversations` | 创建对话（可关联知识点） | ✅ |
+| GET | `/chat/conversations/{id}` | 对话详情 + 消息历史 | ✅ |
+| DELETE | `/chat/conversations/{id}` | 删除对话 | ✅ |
+| POST | `/chat/conversations/{id}/chat` | RAG 问答 SSE 流式返回 | ✅ |
+| POST | `/interview/start` | 开始模拟面试并生成题目 | ✅ |
+| POST | `/interview/{session_id}/answer/{question_id}` | 提交单题回答并评分 | ✅ |
+| POST | `/interview/{session_id}/finish` | 结束面试并生成总结 | ✅ |
+| GET | `/interview/sessions` | 面试历史列表 | ✅ |
+| GET | `/interview/sessions/{id}` | 面试详情 | ✅ |
+| GET | `/interview/weak-points` | 薄弱知识点分析 | ✅ |
+| GET | `/export/json` | 导出完整 JSON | ✅ |
+| GET | `/export/markdown` | 导出知识点 Markdown | ✅ |
+| GET | `/export/anki` | 导出 Anki CSV | ✅ |
 
 **查询参数**（GET /notes）：
 - `keyword` — 标题/内容模糊搜索（str, 可选）
@@ -317,6 +353,62 @@ knowbase/
 | modules | JSONB | 模块数组：`[{name, topics, priority}]` |
 | created_at | TIMESTAMP | 创建时间 |
 
+### note_chunks 表
+| 列名 | 类型 | 说明 |
+|------|------|------|
+| id | UUID (PK) | 主键 |
+| note_id | UUID (FK) | 所属知识点 |
+| chunk_index | INTEGER | 分块序号 |
+| chunk_text | TEXT | 分块文本 |
+| content_hash | VARCHAR(64) | 内容 SHA-256 |
+| embedding | VECTOR(1536) | pgvector 嵌入向量 |
+| updated_at | TIMESTAMP | 更新时间 |
+
+### conversations 表
+| 列名 | 类型 | 说明 |
+|------|------|------|
+| id | UUID (PK) | 主键 |
+| user_id | UUID (FK) | 所属用户 |
+| title | VARCHAR(200) | 对话标题 |
+| note_id | UUID (FK, nullable) | 关联知识点 |
+| created_at / updated_at | TIMESTAMP | 时间戳 |
+
+### messages 表
+| 列名 | 类型 | 说明 |
+|------|------|------|
+| id | UUID (PK) | 主键 |
+| conversation_id | UUID (FK) | 所属对话 |
+| role | VARCHAR(20) | user / assistant / system |
+| content | TEXT | 消息内容 |
+| sources | JSONB | 引用知识点来源 |
+| created_at | TIMESTAMP | 创建时间 |
+
+### interview_sessions 表
+| 列名 | 类型 | 说明 |
+|------|------|------|
+| id | UUID (PK) | 主键 |
+| user_id | UUID (FK) | 所属用户 |
+| title | VARCHAR(200) | 面试标题 |
+| scope | VARCHAR(50) | all / weak_points |
+| total_score | INTEGER | 总分 |
+| summary | TEXT | AI 总结 |
+| status | VARCHAR(20) | in_progress / completed |
+| created_at / finished_at | TIMESTAMP | 时间戳 |
+
+### interview_questions 表
+| 列名 | 类型 | 说明 |
+|------|------|------|
+| id | UUID (PK) | 主键 |
+| session_id | UUID (FK) | 所属面试 |
+| note_id | UUID (FK, nullable) | 关联知识点 |
+| question | TEXT | 面试题 |
+| reference_answer | TEXT | 参考答案 |
+| user_answer | TEXT | 用户回答 |
+| ai_score | INTEGER | AI 评分 1-10 |
+| ai_feedback | TEXT | AI 反馈 |
+| question_order | INTEGER | 题目顺序 |
+| created_at | TIMESTAMP | 创建时间 |
+
 ---
 
 ## 6. 开发环境启动
@@ -394,13 +486,18 @@ npm run dev   # http://localhost:5173
 - [x] 前端构建：`npm run build` → 通过（仍有 Vite chunk size 警告）
 
 **V2.3 — RAG 对话 + 模拟面试**
-- [ ] note_chunks（分块 + pgvector 向量嵌入）
-- [ ] RAG 管线 + AI 对话（SSE 流式）
-- [ ] interview_sessions + interview_questions（多题面试）
-- [ ] AI 面试官（出题 + 评分 + 总结）
-- [ ] 薄弱知识点分析
-- [ ] 数据导出（JSON / Markdown / Anki CSV）
-- [ ] 前端 Chat + Interview + Settings + Dashboard 完整版
+- [x] note_chunks（分块 + pgvector 向量嵌入）
+- [x] RAG 管线 + AI 对话（SSE 流式）
+- [x] interview_sessions + interview_questions（多题面试）
+- [x] AI 面试官（出题 + 评分 + 总结；无 API key 时本地兜底）
+- [x] 薄弱知识点分析
+- [x] 数据导出（JSON / Markdown / Anki CSV）
+- [x] 前端 Chat + Interview + Settings + Dashboard 完整版
+
+**V2.3 验证结果**
+- [x] Alembic 当前版本：`e2b1a0d9c6f4 (head)`
+- [x] 后端测试：`D:\Python\venvs\knowbase\Scripts\python.exe -m pytest -q` → 43 passed
+- [x] 前端构建：`npm run build` → 通过（仍有 Vite chunk size 警告）
 
 ### Phase 3 — 增强
 - [ ] Markdown / 富文本编辑器
@@ -445,6 +542,9 @@ npm run dev   # http://localhost:5173
 10. **API 集成测试依赖 Docker 数据库** — `backend/tests/test_api_learning_loop.py` 会在数据库不可用时自动 skip；需要 Docker Desktop + `docker compose up -d` 才会真实执行
 11. **V2.2 导入/路径有本地兜底** — 未配置 LLM API key 时不会真实调用 AI，会用规则拆段落和预设学习路径模板
 12. **URL 导入是 MVP 抓取** — 当前用 `httpx` + 简单 HTML 去标签，并做基础 SSRF 防护（仅 http/https、拒绝 userinfo、拒绝非公网地址、跳转后重新校验）；复杂反爬、登录态页面、动态渲染页面后续再增强
+13. **前端构建体积继续偏大** — V2.3 引入 Chat/Interview/Markdown 后主 chunk 约 1.5MB，后续可用路由级动态导入拆分
+14. **SSE 使用 StreamingResponse** — 后端已声明 `sse-starlette` 依赖，但当前实现用 FastAPI `StreamingResponse` 输出 `text/event-stream`，减少本地依赖安装阻塞
+15. **Embedding 兜底不是语义向量** — 未配置 Embedding API key 时使用确定性 hash 向量，只保证流程可跑通，真实检索效果需要配置 OpenAI/GLM 等 embedding 服务
 
 ---
 
@@ -462,3 +562,4 @@ npm run dev   # http://localhost:5173
 | 2026-06-02 | V2.1 审查反馈优化：tags/categories 补认证，tags 改为当前用户范围；LLM 失败记录 warning 并兜底；创建知识点后改后台生成复习卡片；`chat.py` 标注 V2.3 预留 |
 | 2026-06-02 | V2.2 完成：新增 AI 导入（文本/URL/代码）、提取草稿确认、批量生成知识点和复习卡片、学习路径生成、Import/Paths 前端页面；后端 20 个测试通过，前端构建通过 |
 | 2026-06-02 | V2.2 Review 加固：URL 导入增加基础 SSRF 防护；确认导入改为先落库、后台生成复习卡片并记录失败；学习路径 modules 增加 schema 校验；前端批量勾选支持部分失败状态同步；后端测试增至 27 个 |
+| 2026-06-02 | V2.3 完成：新增 note_chunks + pgvector 检索、RAG Chat SSE、AI 模拟面试、薄弱点分析、JSON/Markdown/Anki 导出、Chat/Interview/Settings/Dashboard 前端；后端 43 个测试通过，前端构建通过 |

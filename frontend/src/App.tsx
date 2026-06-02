@@ -10,6 +10,8 @@ import Register from './pages/Register'
 import Review from './pages/Review'
 import Import from './pages/Import'
 import Paths from './pages/Paths'
+import Interview from './pages/Interview'
+import Settings from './pages/Settings'
 
 function App() {
   return (
@@ -23,8 +25,10 @@ function App() {
           <Route path="notes/:id" element={<NoteDetail />} />
           <Route path="chat" element={<Chat />} />
           <Route path="review" element={<Review />} />
+          <Route path="interview" element={<Interview />} />
           <Route path="import" element={<Import />} />
           <Route path="paths" element={<Paths />} />
+          <Route path="settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Route>

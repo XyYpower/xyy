@@ -1,6 +1,7 @@
 import time
+import json
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, AsyncGenerator
 
 import httpx
 
@@ -35,6 +36,44 @@ class LLMClient:
         data: dict[str, Any] = response.json()
         return data["choices"][0]["message"]["content"]
 
+    async def chat(self, messages: list[dict[str, str]]) -> str:
+        if not self.api_key:
+            raise RuntimeError(f"{self.provider} API key is not configured")
+
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(
+                f"{self.base_url.rstrip('/')}/chat/completions",
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                json={"model": self.model, "messages": messages, "temperature": 0.3},
+            )
+            response.raise_for_status()
+        data: dict[str, Any] = response.json()
+        return data["choices"][0]["message"]["content"]
+
+    async def chat_stream(self, messages: list[dict[str, str]]) -> AsyncGenerator[str, None]:
+        if not self.api_key:
+            raise RuntimeError(f"{self.provider} API key is not configured")
+
+        async with httpx.AsyncClient(timeout=60) as client:
+            async with client.stream(
+                "POST",
+                f"{self.base_url.rstrip('/')}/chat/completions",
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                json={"model": self.model, "messages": messages, "temperature": 0.3, "stream": True},
+            ) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if not line.startswith("data: "):
+                        continue
+                    data = line[6:]
+                    if data == "[DONE]":
+                        break
+                    chunk = json.loads(data)
+                    delta = chunk.get("choices", [{}])[0].get("delta", {})
+                    content = delta.get("content")
+                    if content:
+                        yield content
+
 
 def get_llm(provider: str | None = None) -> LLMClient:
     settings = get_settings()
@@ -44,4 +83,3 @@ def get_llm(provider: str | None = None) -> LLMClient:
     if selected == "glm":
         return LLMClient("glm", settings.GLM_API_KEY, settings.GLM_BASE_URL, "glm-4-flash")
     return LLMClient("deepseek", settings.DEEPSEEK_API_KEY, settings.DEEPSEEK_BASE_URL, "deepseek-chat")
-

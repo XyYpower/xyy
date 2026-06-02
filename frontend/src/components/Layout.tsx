@@ -8,6 +8,8 @@ import {
   HomeOutlined,
   LogoutOutlined,
   ScheduleOutlined,
+  SettingOutlined,
+  TrophyOutlined,
 } from '@ant-design/icons'
 import { Button } from 'antd'
 import { useAuthStore } from '../store/authStore'
@@ -19,8 +21,10 @@ const menuItems = [
   { key: '/notes', icon: <BookOutlined />, label: '知识点' },
   { key: '/chat', icon: <MessageOutlined />, label: 'AI 对话' },
   { key: '/review', icon: <ScheduleOutlined />, label: '间隔复习' },
+  { key: '/interview', icon: <TrophyOutlined />, label: '模拟面试' },
   { key: '/import', icon: <ImportOutlined />, label: '导入知识' },
   { key: '/paths', icon: <BranchesOutlined />, label: '学习路径' },
+  { key: '/settings', icon: <SettingOutlined />, label: '设置' },
 ]
 
 export default function Layout() {

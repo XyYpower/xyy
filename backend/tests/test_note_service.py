@@ -35,7 +35,11 @@ async def test_create_note_persists_note_without_inline_card_generation(monkeypa
     async def fail_if_called(*args, **kwargs):
         raise AssertionError("card generation should run in a background task")
 
+    async def no_embed(db, note):
+        return None
+
     monkeypatch.setattr(note_service, "_get_or_create_tags", no_tags)
+    monkeypatch.setattr(note_service, "embed_note", no_embed)
     monkeypatch.setattr(note_service.review_service, "generate_cards_for_note", fail_if_called)
     session = FakeSession()
     user_id = uuid.uuid4()

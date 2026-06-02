@@ -5,6 +5,7 @@ from fastapi import HTTPException
 from sqlalchemy import delete, select, text
 
 from app.database import async_session
+from app.models.chat import NoteChunk
 from app.models.import_job import ExtractionDraft, ImportJob
 from app.models.note import Note
 from app.models.review import ReviewCard
@@ -52,6 +53,10 @@ async def test_import_service_creates_drafts_and_confirms_notes(monkeypatch):
         ]
 
     monkeypatch.setattr(import_service, "extract_knowledge_points", fake_extract)
+    async def fake_embed(text_value: str):
+        return [0.01] * 1536
+
+    monkeypatch.setattr(import_service.note_service.embedding, "embed_text", fake_embed)
 
     try:
         user = await _create_user(username)
@@ -93,6 +98,10 @@ async def test_import_service_creates_drafts_and_confirms_notes(monkeypatch):
             assert len(note_count) == 1
             cards = (await session.execute(select(ReviewCard).join(ReviewCard.note).where(Note.user_id == user.id))).scalars().all()
             assert cards == []
+            chunks = (
+                await session.execute(select(NoteChunk).join(Note).where(Note.user_id == user.id))
+            ).scalars().all()
+            assert len(chunks) == 1
             confirmed_drafts = (
                 await session.execute(select(ExtractionDraft).where(ExtractionDraft.import_job_id == job_id))
             ).scalars().all()
@@ -124,6 +133,10 @@ async def test_confirm_import_does_not_generate_review_cards_inline(monkeypatch)
         raise AssertionError("confirm_import should not call LLM card generation inline")
 
     monkeypatch.setattr(import_service.review_service, "generate_cards_for_note", explode_if_called)
+    async def fake_embed(text_value: str):
+        return [0.01] * 1536
+
+    monkeypatch.setattr(import_service.note_service.embedding, "embed_text", fake_embed)
 
     try:
         user = await _create_user(username)
