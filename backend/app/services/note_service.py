@@ -25,8 +25,6 @@ async def create_note(db: AsyncSession, data: NoteCreate, user_id: uuid.UUID) ->
     db.add(note)
     await db.flush()
     await db.refresh(note)
-    await review_service.generate_cards_for_note(db, user_id, note.id)
-    await db.refresh(note)
     return note
 
 
@@ -90,6 +88,18 @@ async def update_note(db: AsyncSession, note: Note, data: NoteUpdate) -> Note:
 async def delete_note(db: AsyncSession, note: Note) -> None:
     await db.delete(note)
     await db.flush()
+
+
+async def get_tags_for_user(db: AsyncSession, user_id: uuid.UUID) -> list[Tag]:
+    result = await db.execute(
+        select(Tag)
+        .join(note_tags, note_tags.c.tag_id == Tag.id)
+        .join(Note, Note.id == note_tags.c.note_id)
+        .where(Note.user_id == user_id)
+        .distinct()
+        .order_by(Tag.name)
+    )
+    return result.scalars().all()
 
 
 async def _get_or_create_tags(db: AsyncSession, tag_names: list[str]) -> list[Tag]:

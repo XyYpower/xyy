@@ -130,8 +130,8 @@ knowbase/
 | POST | `/notes` | 创建笔记（标签自动创建） | ✅ |
 | PUT | `/notes/{id}` | 更新笔记 | ✅ |
 | DELETE | `/notes/{id}` | 删除笔记 | ✅ |
-| GET | `/tags` | 标签列表 | ✅ |
-| GET | `/categories` | 分类列表 | ✅ |
+| GET | `/tags` | 当前用户笔记关联的标签列表（需认证） | ✅ |
+| GET | `/categories` | 分类列表（需认证） | ✅ |
 | POST | `/auth/register` | 用户注册并返回 Token | ✅ |
 | POST | `/auth/login` | 用户登录并返回 Token | ✅ |
 | POST | `/auth/refresh` | 刷新 access token | ✅ |
@@ -354,11 +354,12 @@ npm run dev   # http://localhost:5173
 2. **react-markdown 未使用** — 已声明依赖但未引入
 3. **App.css 残留** — 仍是 Vite 模板默认样式
 4. **分类/标签管理不完整** — 后端只读接口，前端无管理 UI
-5. **测试覆盖仍少** — 当前只覆盖 Auth / SM-2 / 卡片生成核心单元
+5. **测试覆盖仍少** — 当前覆盖 Auth / SM-2 / 卡片生成核心单元、API 学习闭环、tags 认证隔离、后台生成；前端交互测试尚未覆盖
 6. **V2.1 卡片生成有本地兜底** — 未配置 LLM API key 时不会真实调用 AI
 7. **前端构建体积偏大** — 当前 Vite build 有 chunk size 警告，后续可做动态导入
 8. **GitHub 网络不稳定** — 国内访问 GitHub 需多次重试 git push
 9. **alembic.ini 不能有中文注释** — Windows GBK 编码问题，会报 UnicodeDecodeError
+10. **API 集成测试依赖 Docker 数据库** — `backend/tests/test_api_learning_loop.py` 会在数据库不可用时自动 skip；需要 Docker Desktop + `docker compose up -d` 才会真实执行
 
 ---
 
@@ -372,3 +373,5 @@ npm run dev   # http://localhost:5173
 | 2026-06-01 | Phase 2 产品升级：从通用笔记工具升级为"不背单词"式编程学习产品，新增间隔复习 + AI 模拟面试 + 学习仪表盘 |
 | 2026-06-01 | Phase 2 设计优化：整合 Codex 反馈 — SM-2 状态移到 card、面试拆 session+question、导入加草稿确认、新增 ai_call_logs + note_chunks、分三个版本交付（V2.1/V2.2/V2.3） |
 | 2026-06-01 | V2.1 完成：JWT 认证、用户数据隔离、复习卡片、SM-2 调度、Review API、前端登录/注册/复习/Dashboard 基础版 |
+| 2026-06-02 | V2.1 质量加固：新增 API 学习闭环集成测试并在 Docker 数据库上验证通过；清理 Python 3.12 `datetime.utcnow()` 弃用警告；pytest 禁用 cacheprovider 避免 Windows cache 警告 |
+| 2026-06-02 | V2.1 审查反馈优化：tags/categories 补认证，tags 改为当前用户范围；LLM 失败记录 warning 并兜底；创建知识点后改后台生成复习卡片；`chat.py` 标注 V2.3 预留 |

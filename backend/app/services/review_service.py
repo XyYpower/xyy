@@ -1,6 +1,6 @@
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 from app.models.note import Note
 from app.models.review import ReviewCard, ReviewRecord
 from app.rag.card_generator import generate_cards
+from app.database import async_session
 
 
 @dataclass(frozen=True)
@@ -18,6 +19,11 @@ class ReviewSchedule:
     ease_factor: float
     interval_days: int
     review_count: int
+
+
+def _utc_now() -> datetime:
+    """返回 UTC 时间，保持数据库当前 naive timestamp 存储格式。"""
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def calculate_next_review(
@@ -45,7 +51,7 @@ def calculate_next_review(
 
     new_ease = max(1.3, ease_factor + 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
     return ReviewSchedule(
-        next_review_at=datetime.utcnow() + timedelta(days=new_interval),
+        next_review_at=_utc_now() + timedelta(days=new_interval),
         ease_factor=new_ease,
         interval_days=new_interval,
         review_count=new_review_count,
@@ -53,7 +59,7 @@ def calculate_next_review(
 
 
 async def get_today_cards(db: AsyncSession, user_id: uuid.UUID) -> list[ReviewCard]:
-    now = datetime.utcnow()
+    now = _utc_now()
     result = await db.execute(
         select(ReviewCard)
         .join(ReviewCard.note)
@@ -90,7 +96,7 @@ async def submit_review(db: AsyncSession, user_id: uuid.UUID, card_id: uuid.UUID
     card.ease_factor = schedule.ease_factor
     card.interval_days = schedule.interval_days
     card.review_count = schedule.review_count
-    card.last_reviewed_at = datetime.utcnow()
+    card.last_reviewed_at = _utc_now()
 
     db.add(ReviewRecord(card_id=card.id, quality=quality))
     await db.flush()
@@ -114,7 +120,7 @@ async def update_note_mastery(db: AsyncSession, note_id: uuid.UUID) -> None:
 
 
 async def get_review_stats(db: AsyncSession, user_id: uuid.UUID) -> dict:
-    now = datetime.utcnow()
+    now = _utc_now()
     total_cards = (
         await db.execute(select(func.count()).select_from(ReviewCard).join(ReviewCard.note).where(Note.user_id == user_id))
     ).scalar() or 0
@@ -173,6 +179,17 @@ async def generate_cards_for_note(db: AsyncSession, user_id: uuid.UUID, note_id:
     return cards
 
 
+async def generate_cards_for_note_task(user_id: uuid.UUID, note_id: uuid.UUID) -> None:
+    """后台生成复习卡片，避免创建知识点接口被 LLM 调用阻塞。"""
+    async with async_session() as db:
+        try:
+            await generate_cards_for_note(db, user_id, note_id)
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise
+
+
 async def edit_card(
     db: AsyncSession,
     user_id: uuid.UUID,
@@ -207,4 +224,3 @@ async def _get_owned_card(db: AsyncSession, user_id: uuid.UUID, card_id: uuid.UU
     if not card:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Review card not found")
     return card
-

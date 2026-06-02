@@ -34,3 +34,6 @@ dev = [
 [tool.setuptools.packages.find]
 include = ["app*"]
 exclude = ["alembic*"]
+
+[tool.pytest.ini_options]
+addopts = "-p no:cacheprovider"

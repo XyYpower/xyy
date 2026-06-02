@@ -1,12 +1,12 @@
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.user import User
 from app.schemas.common import PageResult
 from app.schemas.note import NoteCreate, NoteUpdate, NoteOut, NoteListItem
-from app.services import note_service
+from app.services import note_service, review_service
 from app.utils.deps import get_current_user
 from app.utils.response import success
 
@@ -59,10 +59,13 @@ async def get_note(
 @router.post("")
 async def create_note(
     data: NoteCreate,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     note = await note_service.create_note(db, data, current_user.id)
+    await db.commit()
+    background_tasks.add_task(review_service.generate_cards_for_note_task, current_user.id, note.id)
     return success(NoteOut.model_validate(note))
 
 

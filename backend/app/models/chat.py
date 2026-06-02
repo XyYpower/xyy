@@ -1,4 +1,8 @@
-"""Chat 相关数据模型：Conversation、Message、NoteEmbedding"""
+"""V2.3 预留的 Chat/RAG 数据模型。
+
+当前 V2.1 不注册到 app.models.__init__，因此不会参与 Alembic 自动迁移。
+等实现 RAG 对话时再补正式迁移和 pgvector 字段映射。
+"""
 
 import uuid
 from datetime import datetime

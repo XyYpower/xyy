@@ -1,8 +1,10 @@
 import json
+import logging
 
 from app.rag.llm import get_llm
 
 CARD_TYPES = ("concept", "code", "scenario")
+logger = logging.getLogger(__name__)
 
 
 async def generate_cards(note_title: str, note_content: str) -> list[dict[str, str]]:
@@ -30,7 +32,9 @@ async def generate_cards(note_title: str, note_content: str) -> list[dict[str, s
         normalized = _normalize_cards(cards)
         if len(normalized) == 3:
             return normalized
+        logger.warning("LLM card generation returned invalid card payload for provider=%s; using fallback cards", llm.provider)
     except Exception:
+        logger.warning("LLM card generation failed for provider=%s; using fallback cards", llm.provider, exc_info=True)
         return _fallback_cards(note_title, note_content)
 
     return _fallback_cards(note_title, note_content)
@@ -68,4 +72,3 @@ def _fallback_cards(note_title: str, note_content: str) -> list[dict[str, str]]:
             "answer": answer,
         },
     ]
-
