@@ -137,14 +137,20 @@ export default function Import() {
       return next
     })
     try {
-      const responses = await Promise.all(
+      const results = await Promise.allSettled(
         targets.map((draft) => importApi.updateDraft(draft.id, { is_selected: checked }))
       )
+      const successfulDrafts = results
+        .filter((result) => result.status === 'fulfilled')
+        .map((result) => result.value.data)
+      const failedCount = results.length - successfulDrafts.length
+
       setDrafts((current) =>
-        current.map((draft) => responses.find((response) => response.data.id === draft.id)?.data ?? draft)
+        current.map((draft) => successfulDrafts.find((updated) => updated.id === draft.id) ?? draft)
       )
-    } catch {
-      message.error('批量更新失败')
+      if (failedCount > 0) {
+        message.error(`${failedCount} 个草稿更新失败`)
+      }
     } finally {
       setUpdatingIds(new Set())
     }

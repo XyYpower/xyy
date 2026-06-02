@@ -1,3 +1,8 @@
+import uuid
+
+import pytest
+
+from app.services import review_service
 from app.services.review_service import calculate_next_review
 
 
@@ -38,3 +43,14 @@ def test_sm2_failed_review_resets_count_and_keeps_minimum_ease():
     assert result.review_count == 0
     assert result.ease_factor >= 1.3
 
+
+@pytest.mark.asyncio
+async def test_background_card_generation_logs_and_swallows_failures(monkeypatch, caplog):
+    async def fail(*args, **kwargs):
+        raise RuntimeError("llm failed")
+
+    monkeypatch.setattr(review_service, "generate_cards_for_note", fail)
+
+    await review_service.generate_cards_for_note_task(uuid.uuid4(), uuid.uuid4())
+
+    assert "Background review card generation failed" in caplog.text

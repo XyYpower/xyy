@@ -70,20 +70,39 @@ def _normalize_path(payload: dict, goal: str) -> dict:
     name = str(payload.get("name") or f"{goal} 学习路径").strip()[:100]
     description = str(payload.get("description") or f"围绕 {goal} 生成的学习路径。").strip()
     modules = []
-    for index, module in enumerate(payload.get("modules", []), start=1):
+    raw_modules = payload.get("modules", [])
+    if not isinstance(raw_modules, list):
+        return _fallback_path(goal)
+
+    for index, module in enumerate(raw_modules, start=1):
+        if not isinstance(module, dict):
+            continue
         module_name = str(module.get("name", "")).strip()
-        topics = [str(topic).strip() for topic in module.get("topics", []) if str(topic).strip()]
+        raw_topics = module.get("topics", [])
+        if not isinstance(raw_topics, list):
+            continue
+        topics = [str(topic).strip() for topic in raw_topics if str(topic).strip()]
         if module_name and topics:
+            priority = _normalize_priority(module.get("priority"), index)
             modules.append(
                 {
                     "name": module_name,
                     "topics": topics[:5],
-                    "priority": int(module.get("priority") or index),
+                    "priority": priority,
                 }
             )
     if not modules:
         return _fallback_path(goal)
     return {"name": name, "description": description, "modules": modules[:8]}
+
+
+def _normalize_priority(value, fallback: int) -> int:
+    if value is None:
+        return fallback
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return fallback
 
 
 def _fallback_path(goal: str) -> dict:

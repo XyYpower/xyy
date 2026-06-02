@@ -1,4 +1,5 @@
 import uuid
+import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
@@ -11,6 +12,8 @@ from app.models.note import Note
 from app.models.review import ReviewCard, ReviewRecord
 from app.rag.card_generator import generate_cards
 from app.database import async_session
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -187,7 +190,7 @@ async def generate_cards_for_note_task(user_id: uuid.UUID, note_id: uuid.UUID) -
             await db.commit()
         except Exception:
             await db.rollback()
-            raise
+            logger.warning("Background review card generation failed for note_id=%s", note_id, exc_info=True)
 
 
 async def edit_card(

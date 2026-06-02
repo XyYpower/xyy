@@ -1,6 +1,10 @@
+import asyncio
+import ipaddress
 import re
+import socket
 import uuid
 from html import unescape
+from urllib.parse import urljoin, urlparse
 
 import httpx
 from fastapi import HTTPException, status
@@ -118,22 +122,74 @@ async def confirm_import(db: AsyncSession, user_id: uuid.UUID, job_id: uuid.UUID
         await db.refresh(note)
         draft.note_id = note.id
         notes.append(note)
-        await review_service.generate_cards_for_note(db, user_id, note.id)
 
     job.status = "confirmed"
     await db.flush()
-    return notes
+    return await _load_notes_for_output(db, [note.id for note in notes])
 
 
 async def fetch_url_text(url: str) -> str:
-    async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
-        response = await client.get(url, headers={"User-Agent": "KnowBase/1.0"})
-        response.raise_for_status()
-    html = response.text
+    current_url = await _validate_public_http_url(url)
+    async with httpx.AsyncClient(timeout=15, follow_redirects=False, trust_env=False) as client:
+        for _ in range(4):
+            try:
+                response = await client.get(current_url, headers={"User-Agent": "KnowBase/1.0"})
+                response.raise_for_status()
+            except httpx.HTTPError as exc:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="URL fetch failed") from exc
+
+            if response.is_redirect:
+                location = response.headers.get("Location")
+                if not location:
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Redirect location is missing")
+                current_url = await _validate_public_http_url(urljoin(current_url, location))
+                continue
+
+            html = response.text
+            break
+        else:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Too many redirects")
+
     html = re.sub(r"<(script|style)[^>]*>.*?</\1>", "", html, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"<[^>]+>", " ", html)
     text = unescape(re.sub(r"\s+", " ", text)).strip()
     return text[:8000]
+
+
+async def _validate_public_http_url(url: str) -> str:
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only http/https URLs are supported")
+    if parsed.username or parsed.password:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="URL userinfo is not allowed")
+
+    try:
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid URL port") from exc
+
+    try:
+        addresses = await asyncio.to_thread(socket.getaddrinfo, parsed.hostname, port, type=socket.SOCK_STREAM)
+    except socket.gaierror as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="URL host could not be resolved") from exc
+
+    for address in {item[4][0] for item in addresses}:
+        ip = ipaddress.ip_address(address)
+        if not ip.is_global:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="URL host is not allowed")
+    return url
+
+
+async def _load_notes_for_output(db: AsyncSession, note_ids: list[uuid.UUID]) -> list[Note]:
+    if not note_ids:
+        return []
+    result = await db.execute(
+        select(Note)
+        .options(selectinload(Note.category), selectinload(Note.tags))
+        .where(Note.id.in_(note_ids))
+    )
+    by_id = {note.id: note for note in result.unique().scalars().all()}
+    return [by_id[note_id] for note_id in note_ids if note_id in by_id]
 
 
 async def _get_owned_draft(db: AsyncSession, user_id: uuid.UUID, draft_id: uuid.UUID) -> ExtractionDraft:

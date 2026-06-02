@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -15,7 +15,7 @@ from app.schemas.import_job import (
     ImportUrlRequest,
 )
 from app.schemas.note import NoteOut
-from app.services import import_service
+from app.services import import_service, review_service
 from app.utils.deps import get_current_user
 from app.utils.response import success
 
@@ -94,8 +94,12 @@ async def update_draft(
 @router.post("/jobs/{job_id}/confirm")
 async def confirm(
     job_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     notes = await import_service.confirm_import(db, current_user.id, job_id)
+    await db.commit()
+    for note in notes:
+        background_tasks.add_task(review_service.generate_cards_for_note_task, current_user.id, note.id)
     return success([NoteOut.model_validate(note) for note in notes])

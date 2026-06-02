@@ -1,6 +1,7 @@
 import uuid
 
 import pytest
+from fastapi import HTTPException
 from sqlalchemy import delete, select, text
 
 from app.database import async_session
@@ -50,18 +51,7 @@ async def test_import_service_creates_drafts_and_confirms_notes(monkeypatch):
             {"title": "布隆过滤器", "content": "布隆过滤器可以拦截不存在的 key。"},
         ]
 
-    async def fake_generate_cards(db, user_id, note_id):
-        cards = [
-            ReviewCard(note_id=note_id, card_type="concept", question="q1", answer="a1"),
-            ReviewCard(note_id=note_id, card_type="code", question="q2", answer="a2"),
-            ReviewCard(note_id=note_id, card_type="scenario", question="q3", answer="a3"),
-        ]
-        db.add_all(cards)
-        await db.flush()
-        return cards
-
     monkeypatch.setattr(import_service, "extract_knowledge_points", fake_extract)
-    monkeypatch.setattr(import_service.review_service, "generate_cards_for_note", fake_generate_cards)
 
     try:
         user = await _create_user(username)
@@ -102,10 +92,64 @@ async def test_import_service_creates_drafts_and_confirms_notes(monkeypatch):
             note_count = (await session.execute(select(Note).where(Note.user_id == user.id))).scalars().all()
             assert len(note_count) == 1
             cards = (await session.execute(select(ReviewCard).join(ReviewCard.note).where(Note.user_id == user.id))).scalars().all()
-            assert len(cards) == 3
+            assert cards == []
             confirmed_drafts = (
                 await session.execute(select(ExtractionDraft).where(ExtractionDraft.import_job_id == job_id))
             ).scalars().all()
             assert sum(1 for draft in confirmed_drafts if draft.note_id) == 1
+    finally:
+        await _cleanup_user(username)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "ftp://example.com/article",
+        "http://127.0.0.1:1/admin",
+        "http://localhost:1/admin",
+    ],
+)
+async def test_fetch_url_text_rejects_unsafe_targets(url: str):
+    with pytest.raises(HTTPException) as exc_info:
+        await import_service.fetch_url_text(url)
+
+    assert exc_info.value.status_code == 400
+
+
+async def test_confirm_import_does_not_generate_review_cards_inline(monkeypatch):
+    await _require_database()
+    username = f"import_no_inline_{uuid.uuid4().hex[:10]}"
+
+    async def explode_if_called(db, user_id, note_id):
+        raise AssertionError("confirm_import should not call LLM card generation inline")
+
+    monkeypatch.setattr(import_service.review_service, "generate_cards_for_note", explode_if_called)
+
+    try:
+        user = await _create_user(username)
+        async with async_session() as session:
+            job = ImportJob(
+                user_id=user.id,
+                source_type="text",
+                source_text="缓存穿透是查询不存在的数据。",
+                status="draft",
+            )
+            session.add(job)
+            await session.flush()
+            draft = ExtractionDraft(import_job_id=job.id, title="缓存穿透", content="查询不存在的数据。")
+            session.add(draft)
+            await session.commit()
+            job_id = job.id
+
+        async with async_session() as session:
+            notes = await import_service.confirm_import(session, user.id, job_id)
+            await session.commit()
+            assert len(notes) == 1
+
+        async with async_session() as session:
+            cards = (
+                await session.execute(select(ReviewCard).join(ReviewCard.note).where(Note.user_id == user.id))
+            ).scalars().all()
+            assert cards == []
     finally:
         await _cleanup_user(username)

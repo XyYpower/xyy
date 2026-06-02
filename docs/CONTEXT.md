@@ -390,7 +390,7 @@ npm run dev   # http://localhost:5173
 
 **V2.2 验证结果**
 - [x] Alembic 当前版本：`b4c7a91f2d6e (head)`
-- [x] 后端测试：`D:\Python\venvs\knowbase\Scripts\python.exe -m pytest -q` → 20 passed
+- [x] 后端测试：`D:\Python\venvs\knowbase\Scripts\python.exe -m pytest -q` → 27 passed
 - [x] 前端构建：`npm run build` → 通过（仍有 Vite chunk size 警告）
 
 **V2.3 — RAG 对话 + 模拟面试**
@@ -444,7 +444,7 @@ npm run dev   # http://localhost:5173
 9. **alembic.ini 不能有中文注释** — Windows GBK 编码问题，会报 UnicodeDecodeError
 10. **API 集成测试依赖 Docker 数据库** — `backend/tests/test_api_learning_loop.py` 会在数据库不可用时自动 skip；需要 Docker Desktop + `docker compose up -d` 才会真实执行
 11. **V2.2 导入/路径有本地兜底** — 未配置 LLM API key 时不会真实调用 AI，会用规则拆段落和预设学习路径模板
-12. **URL 导入是 MVP 抓取** — 当前用 `httpx` + 简单 HTML 去标签，复杂反爬、登录态页面、动态渲染页面后续再增强
+12. **URL 导入是 MVP 抓取** — 当前用 `httpx` + 简单 HTML 去标签，并做基础 SSRF 防护（仅 http/https、拒绝 userinfo、拒绝非公网地址、跳转后重新校验）；复杂反爬、登录态页面、动态渲染页面后续再增强
 
 ---
 
@@ -461,3 +461,4 @@ npm run dev   # http://localhost:5173
 | 2026-06-02 | V2.1 质量加固：新增 API 学习闭环集成测试并在 Docker 数据库上验证通过；清理 Python 3.12 `datetime.utcnow()` 弃用警告；pytest 禁用 cacheprovider 避免 Windows cache 警告 |
 | 2026-06-02 | V2.1 审查反馈优化：tags/categories 补认证，tags 改为当前用户范围；LLM 失败记录 warning 并兜底；创建知识点后改后台生成复习卡片；`chat.py` 标注 V2.3 预留 |
 | 2026-06-02 | V2.2 完成：新增 AI 导入（文本/URL/代码）、提取草稿确认、批量生成知识点和复习卡片、学习路径生成、Import/Paths 前端页面；后端 20 个测试通过，前端构建通过 |
+| 2026-06-02 | V2.2 Review 加固：URL 导入增加基础 SSRF 防护；确认导入改为先落库、后台生成复习卡片并记录失败；学习路径 modules 增加 schema 校验；前端批量勾选支持部分失败状态同步；后端测试增至 27 个 |

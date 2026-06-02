@@ -1,10 +1,13 @@
 import uuid
+from datetime import UTC, datetime
 
 import pytest
+from pydantic import ValidationError
 from sqlalchemy import delete, select, text
 
 from app.database import async_session
 from app.models.path import LearningPath
+from app.schemas.path import LearningPathOut
 from app.models.user import User
 from app.services import path_service
 
@@ -73,3 +76,34 @@ async def test_parse_learning_path_from_llm_json(monkeypatch):
 
     assert payload["name"] == "后端路线"
     assert payload["modules"][0]["topics"] == ["索引", "事务"]
+
+
+async def test_parse_learning_path_preserves_zero_priority(monkeypatch):
+    class WorkingLLM:
+        api_key = "configured"
+        provider = "deepseek"
+
+        async def chat_json(self, messages):
+            return (
+                '{"name":"后端路线","description":"面试准备",'
+                '"modules":[{"name":"数据库","topics":["索引","事务"],"priority":0}]}'
+            )
+
+    monkeypatch.setattr(path_service, "get_llm", lambda: WorkingLLM())
+
+    payload = await path_service.generate_path_payload("后端面试")
+
+    assert payload["modules"][0]["priority"] == 0
+
+
+async def test_learning_path_output_rejects_invalid_modules():
+    with pytest.raises(ValidationError):
+        LearningPathOut.model_validate(
+            {
+                "id": uuid.uuid4(),
+                "name": "坏路径",
+                "description": "topics 不是数组",
+                "modules": [{"name": "数据库", "topics": "索引,事务", "priority": 1}],
+                "created_at": datetime.now(UTC),
+            }
+        )
