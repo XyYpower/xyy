@@ -8,6 +8,8 @@ import Chat from './pages/Chat'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Review from './pages/Review'
+import Import from './pages/Import'
+import Paths from './pages/Paths'
 
 function App() {
   return (
@@ -19,8 +21,10 @@ function App() {
           <Route index element={<Home />} />
           <Route path="notes" element={<Notes />} />
           <Route path="notes/:id" element={<NoteDetail />} />
-          <Route path="review" element={<Review />} />
           <Route path="chat" element={<Chat />} />
+          <Route path="review" element={<Review />} />
+          <Route path="import" element={<Import />} />
+          <Route path="paths" element={<Paths />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Route>

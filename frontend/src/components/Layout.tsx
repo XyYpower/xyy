@@ -2,6 +2,8 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { Layout as AntLayout, Menu } from 'antd'
 import {
   BookOutlined,
+  BranchesOutlined,
+  ImportOutlined,
   MessageOutlined,
   HomeOutlined,
   LogoutOutlined,
@@ -15,8 +17,10 @@ const { Sider, Content } = AntLayout
 const menuItems = [
   { key: '/', icon: <HomeOutlined />, label: '概览' },
   { key: '/notes', icon: <BookOutlined />, label: '知识点' },
-  { key: '/review', icon: <ScheduleOutlined />, label: '间隔复习' },
   { key: '/chat', icon: <MessageOutlined />, label: 'AI 对话' },
+  { key: '/review', icon: <ScheduleOutlined />, label: '间隔复习' },
+  { key: '/import', icon: <ImportOutlined />, label: '导入知识' },
+  { key: '/paths', icon: <BranchesOutlined />, label: '学习路径' },
 ]
 
 export default function Layout() {

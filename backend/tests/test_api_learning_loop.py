@@ -143,3 +143,91 @@ async def test_tag_and_category_list_require_auth_and_tags_are_user_scoped():
             assert other_tags == []
     finally:
         await _cleanup_users([owner_username, other_username])
+
+
+async def test_import_text_api_creates_drafts_and_confirms_selected_notes():
+    await _require_database()
+    suffix = uuid.uuid4().hex[:10]
+    username = f"import_api_{suffix}"
+
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            token = await _register(client, username)
+            headers = _auth_header(token)
+
+            response = await client.post(
+                "/api/v1/import/text",
+                headers=headers,
+                json={
+                    "text": (
+                        "缓存穿透是查询不存在的数据导致请求打到数据库。\n\n"
+                        "布隆过滤器可以提前判断 key 是否可能存在。"
+                    )
+                },
+            )
+            assert response.status_code == 200, response.text
+            payload = response.json()["data"]
+            job_id = payload["job"]["id"]
+            drafts = payload["drafts"]
+            assert payload["job"]["status"] == "draft"
+            assert len(drafts) == 2
+
+            update_response = await client.put(
+                f"/api/v1/import/drafts/{drafts[1]['id']}",
+                headers=headers,
+                json={"title": "布隆过滤器方案", "is_selected": False},
+            )
+            assert update_response.status_code == 200, update_response.text
+            assert update_response.json()["data"]["is_selected"] is False
+
+            confirm_response = await client.post(f"/api/v1/import/jobs/{job_id}/confirm", headers=headers)
+            assert confirm_response.status_code == 200, confirm_response.text
+            notes = confirm_response.json()["data"]
+            assert len(notes) == 1
+            assert notes[0]["source_type"] == "imported"
+
+            cards_response = await client.get(f"/api/v1/review/cards/{notes[0]['id']}", headers=headers)
+            assert cards_response.status_code == 200, cards_response.text
+            assert len(cards_response.json()["data"]) == 3
+    finally:
+        await _cleanup_users([username])
+
+
+async def test_paths_api_generates_lists_and_enforces_ownership():
+    await _require_database()
+    suffix = uuid.uuid4().hex[:10]
+    owner_username = f"path_owner_{suffix}"
+    other_username = f"path_other_{suffix}"
+
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            owner_token = await _register(client, owner_username)
+            other_token = await _register(client, other_username)
+            owner_headers = _auth_header(owner_token)
+
+            generate_response = await client.post(
+                "/api/v1/paths/generate",
+                headers=owner_headers,
+                json={"goal": "后端面试"},
+            )
+            assert generate_response.status_code == 200, generate_response.text
+            path = generate_response.json()["data"]
+            assert path["modules"]
+
+            list_response = await client.get("/api/v1/paths", headers=owner_headers)
+            assert list_response.status_code == 200, list_response.text
+            assert len(list_response.json()["data"]) == 1
+
+            detail_response = await client.get(f"/api/v1/paths/{path['id']}", headers=owner_headers)
+            assert detail_response.status_code == 200, detail_response.text
+            assert detail_response.json()["data"]["id"] == path["id"]
+
+            other_detail_response = await client.get(
+                f"/api/v1/paths/{path['id']}",
+                headers=_auth_header(other_token),
+            )
+            assert other_detail_response.status_code == 404
+    finally:
+        await _cleanup_users([owner_username, other_username])

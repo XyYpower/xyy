@@ -13,6 +13,8 @@
 - 分类与标签体系
 - 基于笔记内容的 AI 对话问答（RAG + LLM）
 - 向量语义搜索（pgvector）
+- AI 导入外部内容并提取知识点
+- AI 生成学习路径，辅助规划学习目标
 
 目标用户：需要管理和检索大量学习笔记的个人开发者/学生。
 
@@ -65,33 +67,56 @@ knowbase/
 ├── CLAUDE.md              # Claude Code 行为指令
 ├── AGENTS.md              # Codex 行为指令
 ├── docs/
-│   └── CONTEXT.md         # 本文件 — 项目共享上下文
+│   ├── CONTEXT.md         # 本文件 — 项目共享上下文
+│   ├── Phase2-design.md   # Phase 2 完整设计
+│   ├── V2.1-task.md       # V2.1 任务书（已完成）
+│   └── V2.2-task.md       # V2.2 任务书（已完成）
 ├── docker-compose.yml     # PostgreSQL + pgvector
 ├── .env.example           # 环境变量模板
 ├── .gitignore
 │
 ├── backend/
 │   ├── pyproject.toml     # Python 依赖声明
-│   ├── alembic/           # 数据库迁移（待配置）
+│   ├── alembic/           # 数据库迁移
 │   │   └── versions/
-│   ├── tests/             # 测试（待编写）
+│   ├── tests/             # 后端测试
 │   └── app/
 │       ├── main.py        # FastAPI 入口
 │       ├── config.py      # 配置管理
 │       ├── database.py    # 数据库连接
 │       ├── api/           # API 路由层
 │       │   ├── router.py  # 路由聚合
+│       │   ├── auth.py    # 注册/登录/JWT
 │       │   ├── notes.py   # 笔记 CRUD
+│       │   ├── imports.py # AI 导入 + 草稿确认
+│       │   ├── paths.py   # 学习路径
+│       │   ├── review.py  # 间隔复习
 │       │   ├── tags.py    # 标签列表
 │       │   └── categories.py  # 分类列表
 │       ├── models/        # SQLAlchemy ORM 模型
-│       │   └── note.py    # Note / Category / Tag
+│       │   ├── user.py    # User
+│       │   ├── note.py    # Note / Category / Tag
+│       │   ├── review.py  # ReviewCard / ReviewRecord
+│       │   ├── import_job.py # ImportJob / ExtractionDraft
+│       │   ├── path.py    # LearningPath
+│       │   └── chat.py    # V2.3 对话预留
 │       ├── schemas/       # Pydantic 请求/响应模型
 │       │   ├── common.py  # Response[T] / PageResult[T]
-│       │   └── note.py    # 笔记相关 schema
+│       │   ├── auth.py    # 认证相关 schema
+│       │   ├── note.py    # 笔记相关 schema
+│       │   ├── review.py  # 复习相关 schema
+│       │   ├── import_job.py # 导入相关 schema
+│       │   └── path.py    # 学习路径 schema
 │       ├── services/      # 业务逻辑层
-│       │   └── note_service.py
-│       ├── rag/           # RAG 管线（Phase 2 占位）
+│       │   ├── auth_service.py
+│       │   ├── note_service.py
+│       │   ├── review_service.py
+│       │   ├── import_service.py
+│       │   └── path_service.py
+│       ├── rag/           # LLM / RAG 相关能力
+│       │   ├── llm.py
+│       │   ├── card_generator.py
+│       │   └── extractor.py
 │       └── utils/
 │           └── response.py  # 响应工具函数
 │
@@ -105,15 +130,25 @@ knowbase/
         ├── App.tsx        # 路由定义
         ├── index.css      # Tailwind 基础样式
         ├── api/
+        │   ├── auth.ts    # 认证 API
         │   ├── client.ts  # Axios 实例
-        │   └── notes.ts   # 笔记 API 客户端
+        │   ├── notes.ts   # 笔记 API 客户端
+        │   ├── review.ts  # 复习 API 客户端
+        │   ├── import.ts  # 导入 API 客户端
+        │   └── paths.ts   # 学习路径 API 客户端
         ├── components/
         │   └── Layout.tsx # 侧边栏布局
         └── pages/
             ├── Home.tsx       # 概览页（占位）
+            ├── Dashboard.tsx  # 学习仪表盘基础版
             ├── Notes.tsx      # 笔记列表（已实现）
             ├── NoteDetail.tsx # 笔记编辑（已实现）
-            └── Chat.tsx      # AI 对话（Phase 2 占位）
+            ├── Review.tsx     # 间隔复习
+            ├── Import.tsx     # AI 导入
+            ├── Paths.tsx      # 学习路径
+            ├── Login.tsx      # 登录
+            ├── Register.tsx   # 注册
+            └── Chat.tsx       # AI 对话（V2.3 占位）
 ```
 
 ---
@@ -143,6 +178,16 @@ knowbase/
 | POST | `/review/generate/{note_id}` | 为知识点生成复习卡片 | ✅ |
 | PUT | `/review/cards/{card_id}` | 编辑复习卡片 | ✅ |
 | POST | `/review/cards/{card_id}/flag` | 标记卡片质量问题 | ✅ |
+| POST | `/import/text` | 导入文本并提取草稿 | ✅ |
+| POST | `/import/url` | 抓取 URL 内容并提取草稿 | ✅ |
+| POST | `/import/code` | 导入代码并提取技术知识点草稿 | ✅ |
+| GET | `/import/jobs` | 当前用户导入任务列表 | ✅ |
+| GET | `/import/jobs/{job_id}/drafts` | 获取导入任务草稿 | ✅ |
+| PUT | `/import/drafts/{draft_id}` | 编辑/勾选导入草稿 | ✅ |
+| POST | `/import/jobs/{job_id}/confirm` | 确认草稿并生成知识点 + 复习卡片 | ✅ |
+| POST | `/paths/generate` | 根据学习目标生成学习路径 | ✅ |
+| GET | `/paths` | 当前用户学习路径列表 | ✅ |
+| GET | `/paths/{path_id}` | 学习路径详情 | ✅ |
 
 **查询参数**（GET /notes）：
 - `keyword` — 标题/内容模糊搜索（str, 可选）
@@ -239,6 +284,39 @@ knowbase/
 | quality | INTEGER | 评分：0-5 |
 | reviewed_at | TIMESTAMP | 复习时间 |
 
+### import_jobs 表
+| 列名 | 类型 | 说明 |
+|------|------|------|
+| id | UUID (PK) | 主键 |
+| user_id | UUID (FK) | 所属用户 |
+| source_type | VARCHAR(20) | 来源类型：url / text / code |
+| source_url | TEXT | 原始 URL（可选） |
+| source_text | TEXT | 原始导入内容 |
+| status | VARCHAR(20) | pending / processing / draft / confirmed / failed |
+| error_message | TEXT | 失败原因 |
+| created_at / updated_at | TIMESTAMP | 时间戳 |
+
+### extraction_drafts 表
+| 列名 | 类型 | 说明 |
+|------|------|------|
+| id | UUID (PK) | 主键 |
+| import_job_id | UUID (FK) | 所属导入任务 |
+| title | VARCHAR(200) | AI 提取的候选标题 |
+| content | TEXT | AI 提取的候选内容 |
+| is_selected | BOOLEAN | 是否被用户选中导入 |
+| note_id | UUID (FK) | 确认后生成的知识点 ID |
+| created_at | TIMESTAMP | 创建时间 |
+
+### learning_paths 表
+| 列名 | 类型 | 说明 |
+|------|------|------|
+| id | UUID (PK) | 主键 |
+| user_id | UUID (FK) | 所属用户 |
+| name | VARCHAR(100) | 路径名称 |
+| description | TEXT | 路径描述 |
+| modules | JSONB | 模块数组：`[{name, topics, priority}]` |
+| created_at | TIMESTAMP | 创建时间 |
+
 ---
 
 ## 6. 开发环境启动
@@ -305,10 +383,15 @@ npm run dev   # http://localhost:5173
 - [x] 前端 Auth + Review UI + Dashboard 基础版
 
 **V2.2 — AI 导入 + 学习路径**
-- [ ] import_jobs + extraction_drafts（草稿确认流程）
-- [ ] AI 提取知识点（文本/URL/代码）
-- [ ] learning_paths 模型 + AI 生成路径
-- [ ] 前端 Import UI（草稿勾选确认）+ Paths UI
+- [x] import_jobs + extraction_drafts（草稿确认流程）
+- [x] AI 提取知识点（文本/URL/代码，未配置 API key 时本地段落兜底）
+- [x] learning_paths 模型 + AI 生成路径（未配置 API key 时模板兜底）
+- [x] 前端 Import UI（草稿勾选/编辑/确认）+ Paths UI
+
+**V2.2 验证结果**
+- [x] Alembic 当前版本：`b4c7a91f2d6e (head)`
+- [x] 后端测试：`D:\Python\venvs\knowbase\Scripts\python.exe -m pytest -q` → 20 passed
+- [x] 前端构建：`npm run build` → 通过（仍有 Vite chunk size 警告）
 
 **V2.3 — RAG 对话 + 模拟面试**
 - [ ] note_chunks（分块 + pgvector 向量嵌入）
@@ -360,6 +443,8 @@ npm run dev   # http://localhost:5173
 8. **GitHub 网络不稳定** — 国内访问 GitHub 需多次重试 git push
 9. **alembic.ini 不能有中文注释** — Windows GBK 编码问题，会报 UnicodeDecodeError
 10. **API 集成测试依赖 Docker 数据库** — `backend/tests/test_api_learning_loop.py` 会在数据库不可用时自动 skip；需要 Docker Desktop + `docker compose up -d` 才会真实执行
+11. **V2.2 导入/路径有本地兜底** — 未配置 LLM API key 时不会真实调用 AI，会用规则拆段落和预设学习路径模板
+12. **URL 导入是 MVP 抓取** — 当前用 `httpx` + 简单 HTML 去标签，复杂反爬、登录态页面、动态渲染页面后续再增强
 
 ---
 
@@ -375,3 +460,4 @@ npm run dev   # http://localhost:5173
 | 2026-06-01 | V2.1 完成：JWT 认证、用户数据隔离、复习卡片、SM-2 调度、Review API、前端登录/注册/复习/Dashboard 基础版 |
 | 2026-06-02 | V2.1 质量加固：新增 API 学习闭环集成测试并在 Docker 数据库上验证通过；清理 Python 3.12 `datetime.utcnow()` 弃用警告；pytest 禁用 cacheprovider 避免 Windows cache 警告 |
 | 2026-06-02 | V2.1 审查反馈优化：tags/categories 补认证，tags 改为当前用户范围；LLM 失败记录 warning 并兜底；创建知识点后改后台生成复习卡片；`chat.py` 标注 V2.3 预留 |
+| 2026-06-02 | V2.2 完成：新增 AI 导入（文本/URL/代码）、提取草稿确认、批量生成知识点和复习卡片、学习路径生成、Import/Paths 前端页面；后端 20 个测试通过，前端构建通过 |
