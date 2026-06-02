@@ -50,5 +50,6 @@ KnowBase — AI 驱动的个人知识库。FastAPI 后端 + React 前端 + Postg
 
 - 共享项目上下文：`docs/CONTEXT.md`（两个 Agent 共用，保持同步）
 - Phase 2 完整设计：`docs/Phase2-design.md`（两个 Agent 共用）
-- 当前任务：`docs/V2.1-task.md`（V2.1 开发指令）
+- 当前任务：`docs/V2.2-task.md`（V2.2 AI 导入 + 学习路径）
+- V2.1 任务（已完成）：`docs/V2.1-task.md`
 - Codex 指令：`AGENTS.md`（与本文件同级）
