@@ -1,3 +1,4 @@
+from app.models.agent import AgentRun, AgentStep, ToolCall, AICallLog
 from app.models.import_job import ExtractionDraft, ImportJob
 from app.models.chat import Conversation, Message, NoteChunk
 from app.models.interview import InterviewQuestion, InterviewSession
@@ -7,6 +8,10 @@ from app.models.review import ReviewCard, ReviewRecord
 from app.models.user import User
 
 __all__ = [
+    "AgentRun",
+    "AgentStep",
+    "ToolCall",
+    "AICallLog",
     "Note",
     "Category",
     "Tag",

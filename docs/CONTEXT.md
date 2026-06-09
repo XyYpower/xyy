@@ -71,7 +71,9 @@ knowbase/
 │   ├── Phase2-design.md   # Phase 2 完整设计
 │   ├── V2.1-task.md       # V2.1 任务书（已完成）
 │   ├── V2.2-task.md       # V2.2 任务书（已完成）
-│   └── V2.3-task.md       # V2.3 任务书（当前实现）
+│   ├── V2.3-task.md       # V2.3 任务书（已完成）
+│   ├── V3.0-task.md       # V3.0 任务书（已完成）
+│   └── V3.1-agentic-redesign.md # AI Agent 应用开发重设计方案（待实现）
 ├── docker-compose.yml     # PostgreSQL + pgvector
 ├── .env.example           # 环境变量模板
 ├── .gitignore
@@ -123,6 +125,11 @@ knowbase/
 │       │   ├── chat_service.py
 │       │   ├── interview_service.py
 │       │   └── export_service.py
+│       ├── agents/          # Agent Runtime 模块
+│       │   ├── registry.py  # Tool Registry
+│       │   ├── runtime.py   # AgentRun 生命周期管理
+│       │   ├── traces.py    # Trace 记录器 + LLM 日志
+│       │   └── tools.py     # 现有服务工具注册
 │       ├── rag/           # LLM / RAG 相关能力
 │       │   ├── llm.py
 │       │   ├── card_generator.py
@@ -157,7 +164,8 @@ knowbase/
         │   ├── export.ts  # 导出下载
         │   └── dashboard.ts # 仪表盘聚合请求
         │   ├── categories.ts # 分类 CRUD API 客户端
-        │   └── tags.ts    # 标签列表 API 客户端
+        │   ├── tags.ts    # 标签列表 API 客户端
+        │   └── traces.ts  # Trace Lab API 客户端
         ├── components/
         │   ├── Layout.tsx # 侧边栏布局
         │   ├── AuthRoute.tsx # 认证路由守卫
@@ -173,6 +181,7 @@ knowbase/
             ├── Paths.tsx      # 学习路径
             ├── Interview.tsx  # AI 模拟面试
             ├── Settings.tsx   # 设置 + 数据导出
+            ├── TraceLab.tsx   # Agent 运行追踪 + AI 调用监控
             ├── Login.tsx      # 登录
             ├── Register.tsx   # 注册
             └── Chat.tsx       # AI 对话（RAG + SSE）
@@ -234,6 +243,10 @@ knowbase/
 | DELETE | `/categories/{id}` | 删除分类（需认证，关联知识点 category_id 置空） | ✅ |
 | PUT | `/auth/profile` | 更新邮箱/复习提醒设置 | ✅ |
 | PUT | `/auth/password` | 修改密码（需旧密码验证） | ✅ |
+| GET | `/traces/runs` | Agent 运行列表（分页，按用户过滤） | ✅ |
+| GET | `/traces/runs/{id}` | Agent 运行详情（含 steps + tool_calls） | ✅ |
+| GET | `/traces/ai-logs` | AI 调用日志列表（分页） | ✅ |
+| GET | `/traces/stats` | Agent + AI 使用统计 | ✅ |
 
 **查询参数**（GET /notes）：
 - `keyword` — 标题/内容模糊搜索（str, 可选）
@@ -514,6 +527,11 @@ npm run dev   # http://localhost:5173
 - [x] 后端测试：`D:\Python\venvs\knowbase\Scripts\python.exe -m pytest -q` → 51 passed（含 3 个 V3.0 集成测试，Docker 数据库验证通过）
 - [x] 前端构建：`npm run build` → 通过，主 chunk 从 ~1.5MB 降至 ~773KB（路由懒加载拆分）
 
+**V3.1 验证结果**
+- [x] Alembic 当前版本：`a1b2c3d4e5f6 (head)`
+- [x] 后端测试：`D:\Python\venvs\knowbase\Scripts\python.exe -m pytest -q` → 54 passed（含 3 个 V3.1 Agent Runtime 集成测试）
+- [x] 前端构建：`npm run build` → 通过，TraceLab 页面独立 chunk（217KB）
+
 ### Phase 3 — 体验打磨 + 内容管理
 
 > 详细任务书见 [V3.0-task.md](V3.0-task.md)
@@ -535,6 +553,35 @@ npm run dev   # http://localhost:5173
 - [x] 收藏功能 UI（星星按钮 + 筛选开关）
 - [x] Markdown 编辑器（分屏编辑预览）
 - [x] NoteDetail 页面整合升级
+
+### Phase 4 — Agentic Learning OS（设计完成，待实现）
+
+> 详细重设计方案见 [V3.1-agentic-redesign.md](V3.1-agentic-redesign.md)
+> 目标：把 KnowBase 从 AI 编程知识学习工具升级为可展示 AI Agent 应用开发能力的 Agentic Learning OS。
+
+**V3.1 — Agent Runtime + Trace 基础**
+- [x] 新增 agent_runs / agent_steps / tool_calls / ai_call_logs（Alembic 迁移 a1b2c3d4e5f6）
+- [x] 建立 Tool Registry，将现有 notes / retrieval / review / interview / import 服务注册为可审计工具
+- [x] 新增 logged_llm_call / logged_llm_stream 封装，支持自动记录 AI 调用日志
+- [x] 新增 Trace Lab API（runs 列表、详情、AI 日志、统计）
+- [x] 新增 Trace Lab 前端页面（统计卡片、运行列表、详情抽屉、步骤时间线、工具调用表）
+- [x] Dashboard 集成 AI 使用统计
+- [x] 后端测试：3 个新测试覆盖 AgentRun 生命周期、ToolRegistry、AI 日志
+
+**V3.2 — Agent Workspace + 学习规划 Agent**
+- [ ] 新增 Agent Workspace 页面
+- [ ] DiagnosisAgent 根据知识点、复习和面试历史诊断薄弱点
+- [ ] PlannerAgent 将学习目标拆成 path / module / topic / task
+- [ ] 引入人工确认队列，写入知识库和任务前必须确认
+
+**V3.3 — RAG 质量与评估系统**
+- [ ] Hybrid retrieval + citation spans
+- [ ] message_feedback 收集回答质量反馈
+- [ ] eval_cases / eval_runs / eval_results 建立 RAG 和 Agent 回归评估
+
+**V4.0 — LangGraph / MCP 生产化升级**
+- [ ] 长任务和 human-in-the-loop 接入 LangGraph adapter
+- [ ] 暴露 MCP Server，让外部 IDE / Agent 调用 KnowBase resources、tools、prompts
 
 ---
 
@@ -597,3 +644,5 @@ npm run dev   # http://localhost:5173
 | 2026-06-02 | V3.0 后端完成：categories 加 user_id 实现用户数据隔离 + CRUD API；账号设置 API（profile/password）；notes 列表支持 is_favorite 筛选；迁移 f1a2b3c4d5e6；新增 3 个集成测试 |
 | 2026-06-02 | V3.0 前端完成：路由懒加载（主 chunk 从 1.5MB 降至 773KB）；Settings 增强（邮箱/密码/提醒）；分类管理 UI（CRUD + 筛选）；标签编辑 + 收藏功能；Markdown 编辑器（分屏预览）；NoteDetail 整合升级；前端构建通过 |
 | 2026-06-02 | V3.0 质量修复：Settings TimePicker 用 dayjs 正确绑定已保存时间；MarkdownEditor 增加 Ctrl+B/I/K 快捷键 + Tab 缩进 + 分屏边框修复；NoteDetail 保存后刷新标签列表 |
+| 2026-06-03 | V3.1 Agent Runtime 完成：新增 agent_runs/agent_steps/tool_calls/ai_call_logs 四表 + Alembic 迁移 a1b2c3d4e5f6；Tool Registry 注册 8 个工具；logged_llm_call/stream 自动记录 AI 调用；Trace Lab API（4 端点）+ 前端页面（统计/列表/详情/步骤时间线/工具调用表）；Dashboard 集成 AI 使用统计；后端测试增至 54 个 |
+| 2026-06-09 | 新增 V3.1 Agentic Redesign：规划 Agent Runtime、Tool Registry、Trace Lab、Agent Workspace、RAG 评估、Portfolio Builder、LangGraph/MCP 后续路线 |

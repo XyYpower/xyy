@@ -5,6 +5,7 @@ import type { Note } from '../api/notes'
 import type { ReviewStats } from '../api/review'
 import { getDashboardData } from '../api/dashboard'
 import type { InterviewSession } from '../api/interview'
+import type { TraceStats } from '../api/traces'
 
 const { Title, Text } = Typography
 
@@ -13,6 +14,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState<ReviewStats | null>(null)
   const [notes, setNotes] = useState<Note[]>([])
   const [sessions, setSessions] = useState<InterviewSession[]>([])
+  const [traceStats, setTraceStats] = useState<TraceStats | null>(null)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -21,6 +23,7 @@ export default function Dashboard() {
         setStats(data.stats)
         setNotes(data.notes)
         setSessions(data.sessions.slice(0, 3))
+        setTraceStats(data.traceStats)
       } catch {
         message.error('加载概览失败')
       }
@@ -165,6 +168,38 @@ export default function Dashboard() {
                 </button>
               ))}
             </div>
+          )}
+        </div>
+        <div className="bg-white border border-gray-200 rounded-lg p-5">
+          <div className="flex justify-between items-center mb-3">
+            <Title level={4} className="!mb-0">AI 使用概览</Title>
+            <Button type="link" onClick={() => navigate('/traces')}>Trace Lab</Button>
+          </div>
+          {traceStats ? (
+            <div className="space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Agent 运行次数</span>
+                <span className="font-medium">{traceStats.total_runs}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">AI 调用次数</span>
+                <span className="font-medium">{traceStats.total_ai_calls}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">成功率</span>
+                <span className="font-medium">{traceStats.success_rate}%</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">总 Token 消耗</span>
+                <span className="font-medium">{(traceStats.total_prompt_tokens + traceStats.total_completion_tokens).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">预估成本</span>
+                <span className="font-medium">${traceStats.total_cost.toFixed(4)}</span>
+              </div>
+            </div>
+          ) : (
+            <Empty description="暂无 AI 使用数据" />
           )}
         </div>
       </div>

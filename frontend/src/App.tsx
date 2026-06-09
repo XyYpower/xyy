@@ -15,6 +15,7 @@ const Interview = lazy(() => import('./pages/Interview'))
 const Import = lazy(() => import('./pages/Import'))
 const Paths = lazy(() => import('./pages/Paths'))
 const Settings = lazy(() => import('./pages/Settings'))
+const TraceLab = lazy(() => import('./pages/TraceLab'))
 
 const PageLoading = () => (
   <div className="flex justify-center items-center p-16">
@@ -39,6 +40,7 @@ function App() {
             <Route path="import" element={<Import />} />
             <Route path="paths" element={<Paths />} />
             <Route path="settings" element={<Settings />} />
+            <Route path="traces" element={<TraceLab />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Route>

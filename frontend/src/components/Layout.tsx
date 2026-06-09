@@ -10,6 +10,7 @@ import {
   ScheduleOutlined,
   SettingOutlined,
   TrophyOutlined,
+  DashboardOutlined,
 } from '@ant-design/icons'
 import { Button } from 'antd'
 import { useAuthStore } from '../store/authStore'
@@ -24,6 +25,7 @@ const menuItems = [
   { key: '/interview', icon: <TrophyOutlined />, label: '模拟面试' },
   { key: '/import', icon: <ImportOutlined />, label: '导入知识' },
   { key: '/paths', icon: <BranchesOutlined />, label: '学习路径' },
+  { key: '/traces', icon: <DashboardOutlined />, label: 'Trace Lab' },
   { key: '/settings', icon: <SettingOutlined />, label: '设置' },
 ]
 
