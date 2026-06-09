@@ -28,6 +28,7 @@ const menuItems = [
   { key: '/import', icon: <ImportOutlined />, label: '导入知识' },
   { key: '/paths', icon: <BranchesOutlined />, label: '学习路径' },
   { key: '/traces', icon: <DashboardOutlined />, label: 'Trace Lab' },
+  { key: '/portfolio', icon: <TrophyOutlined />, label: 'Portfolio' },
   { key: '/settings', icon: <SettingOutlined />, label: '设置' },
 ]
 

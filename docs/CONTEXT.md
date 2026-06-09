@@ -264,6 +264,12 @@ knowbase/
 | POST | `/eval/runs` | 运行 RAG 评估 | ✅ |
 | GET | `/eval/runs` | 评估运行列表 | ✅ |
 | GET | `/eval/runs/{id}` | 评估运行详情 | ✅ |
+| GET | `/portfolio/summary` | Portfolio 数据总览 | ✅ |
+| POST | `/portfolio/report/project` | 生成项目技术报告 | ✅ |
+| POST | `/portfolio/report/learning` | 生成学习报告 | ✅ |
+| GET | `/portfolio/report/project/markdown` | 导出项目报告 Markdown | ✅ |
+| GET | `/portfolio/report/learning/markdown` | 导出学习报告 Markdown | ✅ |
+| GET | `/portfolio/runs/recent` | 最近 Agent Run 回放 | ✅ |
 
 **查询参数**（GET /notes）：
 - `keyword` — 标题/内容模糊搜索（str, 可选）
@@ -559,6 +565,10 @@ npm run dev   # http://localhost:5173
 - [x] 后端测试：56 passed
 - [x] 前端构建：通过
 
+**V3.4 验证结果**
+- [x] 后端测试：56 passed（无回归）
+- [x] 前端构建：通过
+
 ### Phase 3 — 体验打磨 + 内容管理
 
 > 详细任务书见 [V3.0-task.md](V3.0-task.md)
@@ -613,6 +623,12 @@ npm run dev   # http://localhost:5173
 - [x] 评估 API（反馈提交/统计、用例管理、评估运行）
 - [x] 前端：Chat 页面增加回答反馈按钮（👍/👎）
 - [x] 前端：Trace Lab 增加 RAG 反馈统计和评估运行面板
+
+**V3.4 — Portfolio Builder**
+- [x] Portfolio 服务：项目技术报告 + 学习报告生成（LLM + 本地兜底）
+- [x] Portfolio API（报告生成、Markdown 导出、Agent Run 回放）
+- [x] 前端 Portfolio 页面（数据总览、报告生成展示、Agent Run 时间线、导出 Markdown）
+- [x] 侧边栏新增 Portfolio 导航
 
 **V4.0 — LangGraph / MCP 生产化升级**
 - [ ] 长任务和 human-in-the-loop 接入 LangGraph adapter
@@ -682,4 +698,5 @@ npm run dev   # http://localhost:5173
 | 2026-06-03 | V3.1 Agent Runtime 完成：新增 agent_runs/agent_steps/tool_calls/ai_call_logs 四表 + Alembic 迁移 a1b2c3d4e5f6；Tool Registry 注册 8 个工具；logged_llm_call/stream 自动记录 AI 调用；Trace Lab API（4 端点）+ 前端页面（统计/列表/详情/步骤时间线/工具调用表）；Dashboard 集成 AI 使用统计；后端测试增至 54 个 |
 | 2026-06-03 | V3.2 Agent Workspace 完成：learning_paths 拆分为 modules/topics/tasks 结构化表（迁移 b2c3d4e5f6a7）；DiagnosisAgent + PlannerAgent（LLM + 本地兜底）；Workspace API（diagnose/plan/tasks）+ 前端页面（目标→诊断→计划→今日任务）；path_service 修复 selectinload 兼容；后端测试增至 56 个 |
 | 2026-06-03 | V3.3 RAG 质量与评估系统：message_feedback + eval_cases/runs/results 四表（迁移 c3d4e5f6a7b8）；Hybrid retrieval（向量+PostgreSQL 全文搜索）；RAG 回归评估（自动检索→回答→LLM 评分）；eval API（反馈/用例/运行）；Chat 回答反馈按钮；Trace Lab 增加 RAG 反馈和评估面板 |
+| 2026-06-03 | V3.4 Portfolio Builder：项目技术报告 + 学习报告生成（LLM + 本地兜底）；Portfolio API（报告生成、Markdown 导出、Agent Run 回放）；前端 Portfolio 页面（数据总览、报告展示、Agent Run 时间线、导出）；侧边栏新增 Portfolio 导航 |
 | 2026-06-09 | 新增 V3.1 Agentic Redesign：规划 Agent Runtime、Tool Registry、Trace Lab、Agent Workspace、RAG 评估、Portfolio Builder、LangGraph/MCP 后续路线 |
