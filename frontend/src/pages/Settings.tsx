@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Button, Switch, TimePicker, Input, Typography, message } from 'antd'
 import { DownloadOutlined } from '@ant-design/icons'
+import dayjs from 'dayjs'
 import { downloadExport } from '../api/export'
 import { authApi } from '../api/auth'
 import { useAuthStore } from '../store/authStore'
@@ -166,12 +167,11 @@ export default function Settings() {
             <div className="flex-1">
               <Text type="secondary" className="text-sm">提醒时间</Text>
               <TimePicker
-                value={reminderTime ? undefined : undefined}
+                value={reminderTime ? dayjs(reminderTime, 'HH:mm') : null}
                 format="HH:mm"
                 className="w-full"
                 disabled={!reminderEnabled}
-                onChange={(_, timeStr) => setReminderTime(timeStr as string)}
-                defaultOpenValue={undefined}
+                onChange={(time) => setReminderTime(time ? time.format('HH:mm') : null)}
               />
             </div>
             <Button loading={savingReminder} onClick={handleSaveReminder}>保存</Button>

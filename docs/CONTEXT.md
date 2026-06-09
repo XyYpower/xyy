@@ -596,3 +596,4 @@ npm run dev   # http://localhost:5173
 | 2026-06-02 | V2.3 Review 加固：修复 SSE 中途失败混合 fallback、断连检测、对话更新时间、列表消息预加载、嵌入原子替换/并发生成、pgvector ORM 类型、前端流式错误状态、面试参考答案和归一化分数；后端测试增至 48 个 |
 | 2026-06-02 | V3.0 后端完成：categories 加 user_id 实现用户数据隔离 + CRUD API；账号设置 API（profile/password）；notes 列表支持 is_favorite 筛选；迁移 f1a2b3c4d5e6；新增 3 个集成测试 |
 | 2026-06-02 | V3.0 前端完成：路由懒加载（主 chunk 从 1.5MB 降至 773KB）；Settings 增强（邮箱/密码/提醒）；分类管理 UI（CRUD + 筛选）；标签编辑 + 收藏功能；Markdown 编辑器（分屏预览）；NoteDetail 整合升级；前端构建通过 |
+| 2026-06-02 | V3.0 质量修复：Settings TimePicker 用 dayjs 正确绑定已保存时间；MarkdownEditor 增加 Ctrl+B/I/K 快捷键 + Tab 缩进 + 分屏边框修复；NoteDetail 保存后刷新标签列表 |

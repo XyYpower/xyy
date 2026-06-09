@@ -73,6 +73,8 @@ export default function NoteDetail() {
         tag_names: tagNames,
       })
       setNote(res.data)
+      // 保存后刷新标签列表（可能有新标签被创建）
+      fetchDropdownData()
       message.success('已保存')
     } catch {
       message.error('保存失败')
