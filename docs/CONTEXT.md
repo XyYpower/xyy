@@ -630,9 +630,16 @@ npm run dev   # http://localhost:5173
 - [x] 前端 Portfolio 页面（数据总览、报告生成展示、Agent Run 时间线、导出 Markdown）
 - [x] 侧边栏新增 Portfolio 导航
 
-**V4.0 — LangGraph / MCP 生产化升级**
+**V4.0 — MCP Server**
+- [x] 安装 MCP Python SDK（mcp>=1.0.0）
+- [x] 创建 MCP Server 模块（FastMCP + SSE transport）
+- [x] 暴露 5 个 MCP Tools：search_notes / get_note / create_note_draft / get_review_cards / generate_interview_questions
+- [x] 暴露 3 个 MCP Resources：knowbase://notes/{id} / knowbase://reviews/today / knowbase://paths
+- [x] 挂载到 FastAPI（/mcp/sse 端点）
+- [x] Settings 页面增加 MCP 配置说明
+
+**V4.0 — LangGraph Adapter（待实现）**
 - [ ] 长任务和 human-in-the-loop 接入 LangGraph adapter
-- [ ] 暴露 MCP Server，让外部 IDE / Agent 调用 KnowBase resources、tools、prompts
 
 ---
 
@@ -699,4 +706,5 @@ npm run dev   # http://localhost:5173
 | 2026-06-03 | V3.2 Agent Workspace 完成：learning_paths 拆分为 modules/topics/tasks 结构化表（迁移 b2c3d4e5f6a7）；DiagnosisAgent + PlannerAgent（LLM + 本地兜底）；Workspace API（diagnose/plan/tasks）+ 前端页面（目标→诊断→计划→今日任务）；path_service 修复 selectinload 兼容；后端测试增至 56 个 |
 | 2026-06-03 | V3.3 RAG 质量与评估系统：message_feedback + eval_cases/runs/results 四表（迁移 c3d4e5f6a7b8）；Hybrid retrieval（向量+PostgreSQL 全文搜索）；RAG 回归评估（自动检索→回答→LLM 评分）；eval API（反馈/用例/运行）；Chat 回答反馈按钮；Trace Lab 增加 RAG 反馈和评估面板 |
 | 2026-06-03 | V3.4 Portfolio Builder：项目技术报告 + 学习报告生成（LLM + 本地兜底）；Portfolio API（报告生成、Markdown 导出、Agent Run 回放）；前端 Portfolio 页面（数据总览、报告展示、Agent Run 时间线、导出）；侧边栏新增 Portfolio 导航 |
+| 2026-06-03 | V4.0 MCP Server：安装 mcp SDK；创建 MCP Server 模块（FastMCP + SSE transport）；暴露 5 个 Tools（search_notes/get_note/create_note_draft/get_review_cards/generate_interview_questions）+ 3 个 Resources（notes/reviews/paths）；挂载 /mcp/sse 端点；Settings 增加 MCP 配置说明 |
 | 2026-06-09 | 新增 V3.1 Agentic Redesign：规划 Agent Runtime、Tool Registry、Trace Lab、Agent Workspace、RAG 评估、Portfolio Builder、LangGraph/MCP 后续路线 |

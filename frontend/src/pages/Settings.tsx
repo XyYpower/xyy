@@ -194,6 +194,36 @@ export default function Settings() {
             </Button>
           </div>
         </section>
+
+        {/* MCP Server */}
+        <section className="bg-white border border-gray-200 rounded-lg p-5">
+          <Title level={4}>MCP Server</Title>
+          <Text type="secondary">
+            KnowBase 暴露了 MCP（Model Context Protocol）端点，可以让 Claude Desktop、Cursor 等 AI 工具直接访问你的知识库。
+          </Text>
+          <div className="mt-3 space-y-2">
+            <div className="bg-gray-50 rounded p-3 font-mono text-sm">
+              <div className="text-gray-500 mb-1">SSE 端点：</div>
+              <div>http://localhost:8000/mcp/sse</div>
+            </div>
+            <div className="text-sm text-gray-500">
+              <p className="mb-1"><strong>可用工具：</strong></p>
+              <ul className="list-disc list-inside space-y-1">
+                <li><code>search_notes</code> — 搜索知识点</li>
+                <li><code>get_note</code> — 获取知识点详情</li>
+                <li><code>create_note_draft</code> — 创建知识点草稿</li>
+                <li><code>get_review_cards</code> — 获取今日复习卡片</li>
+                <li><code>generate_interview_questions</code> — 生成面试题</li>
+              </ul>
+              <p className="mt-2 mb-1"><strong>可用资源：</strong></p>
+              <ul className="list-disc list-inside space-y-1">
+                <li><code>knowbase://notes/{"{id}"}</code> — 知识点内容</li>
+                <li><code>knowbase://reviews/today</code> — 今日复习</li>
+                <li><code>knowbase://paths</code> — 学习路径</li>
+              </ul>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   )
