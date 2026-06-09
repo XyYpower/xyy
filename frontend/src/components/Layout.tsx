@@ -12,6 +12,7 @@ import {
   TrophyOutlined,
   DashboardOutlined,
   ThunderboltOutlined,
+  ExperimentOutlined,
 } from '@ant-design/icons'
 import { Button } from 'antd'
 import { useAuthStore } from '../store/authStore'
@@ -19,18 +20,56 @@ import { useAuthStore } from '../store/authStore'
 const { Sider, Content } = AntLayout
 
 const menuItems = [
-  { key: '/', icon: <HomeOutlined />, label: '概览' },
-  { key: '/workspace', icon: <ThunderboltOutlined />, label: 'Agent' },
-  { key: '/notes', icon: <BookOutlined />, label: '知识点' },
-  { key: '/chat', icon: <MessageOutlined />, label: 'AI 对话' },
-  { key: '/review', icon: <ScheduleOutlined />, label: '间隔复习' },
-  { key: '/interview', icon: <TrophyOutlined />, label: '模拟面试' },
-  { key: '/import', icon: <ImportOutlined />, label: '导入知识' },
-  { key: '/paths', icon: <BranchesOutlined />, label: '学习路径' },
-  { key: '/traces', icon: <DashboardOutlined />, label: 'Trace Lab' },
-  { key: '/portfolio', icon: <TrophyOutlined />, label: 'Portfolio' },
-  { key: '/settings', icon: <SettingOutlined />, label: '设置' },
+  {
+    type: 'group' as const,
+    label: '工作台',
+    children: [
+      { key: '/', icon: <HomeOutlined />, label: '概览' },
+      { key: '/workspace', icon: <ThunderboltOutlined />, label: 'Agent' },
+    ],
+  },
+  {
+    type: 'group' as const,
+    label: '知识库',
+    children: [
+      { key: '/notes', icon: <BookOutlined />, label: '知识点' },
+      { key: '/import', icon: <ImportOutlined />, label: '导入知识' },
+      { key: '/chat', icon: <MessageOutlined />, label: 'AI 对话' },
+    ],
+  },
+  {
+    type: 'group' as const,
+    label: '训练',
+    children: [
+      { key: '/review', icon: <ScheduleOutlined />, label: '间隔复习' },
+      { key: '/paths', icon: <BranchesOutlined />, label: '学习路径' },
+      { key: '/interview', icon: <TrophyOutlined />, label: '模拟面试' },
+    ],
+  },
+  {
+    type: 'group' as const,
+    label: '实验室',
+    children: [
+      { key: '/traces', icon: <ExperimentOutlined />, label: 'Trace Lab' },
+      { key: '/portfolio', icon: <DashboardOutlined />, label: 'Portfolio' },
+    ],
+  },
+  {
+    type: 'group' as const,
+    label: '系统',
+    children: [
+      { key: '/settings', icon: <SettingOutlined />, label: '设置' },
+    ],
+  },
 ]
+
+// 扁平化用于选中状态计算
+function findSelectedKey(pathname: string): string {
+  const flatKeys = ['/', '/workspace', '/notes', '/import', '/chat', '/review', '/paths', '/interview', '/traces', '/portfolio', '/settings']
+  return flatKeys.find(
+    (key) => pathname === key || (key !== '/' && pathname.startsWith(key))
+  ) || '/'
+}
 
 export default function Layout() {
   const navigate = useNavigate()
@@ -38,9 +77,7 @@ export default function Layout() {
   const user = useAuthStore((state) => state.user)
   const logout = useAuthStore((state) => state.logout)
 
-  const selectedKey = menuItems.find(
-    (item) => location.pathname === item.key || (item.key !== '/' && location.pathname.startsWith(item.key))
-  )?.key || '/'
+  const selectedKey = findSelectedKey(location.pathname)
 
   return (
     <AntLayout className="min-h-screen">
@@ -54,7 +91,7 @@ export default function Layout() {
             selectedKeys={[selectedKey]}
             items={menuItems}
             onClick={({ key }) => navigate(key)}
-            className="border-none flex-1"
+            className="border-none flex-1 overflow-y-auto"
           />
           <div className="border-t border-gray-200 p-3">
             <div className="text-sm font-medium truncate mb-2">{user?.username || '当前用户'}</div>

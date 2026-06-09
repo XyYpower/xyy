@@ -1,13 +1,14 @@
 import json
 import logging
 import uuid
+from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.path import LearningPath
+from app.models.path import LearningPath, LearningPathModule, LearningPathTopic, LearningTask
 from app.rag.llm import get_llm
 
 logger = logging.getLogger(__name__)
@@ -48,6 +49,42 @@ async def generate_learning_path(db: AsyncSession, user_id: uuid.UUID, goal: str
         modules_json=payload["modules"],
     )
     db.add(path)
+    await db.flush()
+
+    # 创建结构化模块、主题和任务
+    for mod_index, module in enumerate(payload["modules"]):
+        mod = LearningPathModule(
+            path_id=path.id,
+            title=module.get("name", ""),
+            description="",
+            order_index=module.get("priority", mod_index + 1),
+        )
+        db.add(mod)
+        await db.flush()
+
+        topics = module.get("topics", [])
+        for topic_index, topic_name in enumerate(topics):
+            if not isinstance(topic_name, str) or not topic_name.strip():
+                continue
+            tp = LearningPathTopic(
+                module_id=mod.id,
+                title=topic_name.strip(),
+                objective="",
+                priority=topic_index + 1,
+            )
+            db.add(tp)
+            await db.flush()
+
+            task = LearningTask(
+                user_id=user_id,
+                topic_id=tp.id,
+                task_type="learn",
+                title=f"学习：{topic_name.strip()}",
+                description="",
+                due_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(days=mod_index * 7 + topic_index),
+            )
+            db.add(task)
+
     await db.flush()
     # 重新加载以确保 structured_modules 可用
     result = await db.execute(
