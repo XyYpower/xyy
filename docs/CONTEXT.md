@@ -511,7 +511,7 @@ npm run dev   # http://localhost:5173
 
 **V3.0 验证结果**
 - [x] Alembic 当前版本：`f1a2b3c4d5e6 (head)`
-- [x] 后端测试：`D:\Python\venvs\knowbase\Scripts\python.exe -m pytest -q` → 28 passed（Docker 不可用时 23 skipped）
+- [x] 后端测试：`D:\Python\venvs\knowbase\Scripts\python.exe -m pytest -q` → 51 passed（含 3 个 V3.0 集成测试，Docker 数据库验证通过）
 - [x] 前端构建：`npm run build` → 通过，主 chunk 从 ~1.5MB 降至 ~773KB（路由懒加载拆分）
 
 ### Phase 3 — 体验打磨 + 内容管理
@@ -564,7 +564,7 @@ npm run dev   # http://localhost:5173
 2. ~~**react-markdown 未使用** — 已声明依赖但未引入~~ ✅ V3.0 已引入 MarkdownEditor
 3. ~~**App.css 残留** — 仍是 Vite 模板默认样式~~ ✅ 已清理
 4. ~~**分类/标签管理不完整** — 后端只读接口，前端无管理 UI~~ ✅ V3.0 已补齐
-5. **测试覆盖仍少** — 当前覆盖 Auth / SM-2 / 卡片生成核心单元、API 学习闭环、tags 认证隔离、后台生成、V3.0 分类/账号/收藏；前端交互测试尚未覆盖
+5. **测试覆盖仍少** — 当前 51 个测试覆盖 Auth / SM-2 / 卡片生成 / API 学习闭环 / tags 认证隔离 / Chat / Interview / 导出 / V3.0 分类+账号+收藏；前端交互测试尚未覆盖
 6. **V2.1 卡片生成有本地兜底** — 未配置 LLM API key 时不会真实调用 AI
 7. ~~**前端构建体积偏大** — 当前 Vite build 有 chunk size 警告，后续可做动态导入~~ ✅ V3.0 路由懒加载已拆分
 8. **GitHub 网络不稳定** — 国内访问 GitHub 需多次重试 git push
