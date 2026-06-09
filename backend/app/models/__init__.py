@@ -1,4 +1,5 @@
 from app.models.agent import AgentRun, AgentStep, ToolCall, AICallLog
+from app.models.eval import MessageFeedback, EvalCase, EvalRun, EvalResult
 from app.models.import_job import ExtractionDraft, ImportJob
 from app.models.chat import Conversation, Message, NoteChunk
 from app.models.interview import InterviewQuestion, InterviewSession
@@ -12,6 +13,10 @@ __all__ = [
     "AgentStep",
     "ToolCall",
     "AICallLog",
+    "MessageFeedback",
+    "EvalCase",
+    "EvalRun",
+    "EvalResult",
     "Note",
     "Category",
     "Tag",

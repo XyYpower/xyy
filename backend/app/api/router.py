@@ -12,6 +12,7 @@ from app.api.tags import router as tags_router
 from app.api.categories import router as categories_router
 from app.api.traces import router as traces_router
 from app.api.workspace import router as workspace_router
+from app.api.eval import router as eval_router
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -27,3 +28,4 @@ api_router.include_router(tags_router)
 api_router.include_router(categories_router)
 api_router.include_router(traces_router)
 api_router.include_router(workspace_router)
+api_router.include_router(eval_router)

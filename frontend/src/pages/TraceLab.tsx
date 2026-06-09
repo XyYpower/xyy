@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Card, Table, Tag, Typography, Statistic, Row, Col, Drawer, Timeline, Descriptions, Empty, Spin, message } from 'antd'
-import { ThunderboltOutlined, CheckCircleOutlined, ClockCircleOutlined, DollarOutlined } from '@ant-design/icons'
+import { Card, Table, Tag, Typography, Statistic, Row, Col, Drawer, Timeline, Descriptions, Empty, Spin, Button, Progress, message } from 'antd'
+import { ThunderboltOutlined, CheckCircleOutlined, ClockCircleOutlined, DollarOutlined, ExperimentOutlined } from '@ant-design/icons'
 import { traceApi, type AgentRun, type AgentRunDetail, type TraceStats } from '../api/traces'
+import { evalApi, type FeedbackStats, type EvalRun } from '../api/eval'
 
 const { Title, Text } = Typography
 
@@ -32,10 +33,46 @@ export default function TraceLab() {
   const [selectedRun, setSelectedRun] = useState<AgentRunDetail | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
+  const [feedbackStats, setFeedbackStats] = useState<FeedbackStats | null>(null)
+  const [evalRuns, setEvalRuns] = useState<EvalRun[]>([])
+  const [runningEval, setRunningEval] = useState(false)
 
   useEffect(() => {
     fetchStats()
+    fetchFeedbackStats()
+    fetchEvalRuns()
   }, [])
+
+  const fetchFeedbackStats = async () => {
+    try {
+      const res = await evalApi.getFeedbackStats()
+      setFeedbackStats(res.data)
+    } catch {
+      // 静默
+    }
+  }
+
+  const fetchEvalRuns = async () => {
+    try {
+      const res = await evalApi.listRuns()
+      setEvalRuns(res.data)
+    } catch {
+      // 静默
+    }
+  }
+
+  const handleRunEval = async () => {
+    setRunningEval(true)
+    try {
+      await evalApi.startRun()
+      message.success('评估完成')
+      fetchEvalRuns()
+    } catch {
+      message.error('评估失败，请先创建评估用例')
+    } finally {
+      setRunningEval(false)
+    }
+  }
 
   useEffect(() => {
     fetchRuns()
@@ -152,6 +189,62 @@ export default function TraceLab() {
           </Col>
         </Row>
       )}
+
+      {/* RAG 质量与评估 */}
+      <Row gutter={16} className="mb-4">
+        <Col span={12}>
+          <Card
+            title={<><ExperimentOutlined /> RAG 反馈</>}
+            extra={feedbackStats && <Tag>{feedbackStats.total} 条反馈</Tag>}
+          >
+            {feedbackStats && feedbackStats.total > 0 ? (
+              <div>
+                <div className="flex items-center gap-3 mb-2">
+                  <Progress
+                    type="circle"
+                    size={60}
+                    percent={feedbackStats.helpful_rate}
+                    format={(p) => `${p}%`}
+                  />
+                  <div>
+                    <div className="text-sm text-gray-500">回答有帮助率</div>
+                    <div className="text-lg font-semibold">{feedbackStats.helpful} / {feedbackStats.total}</div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无反馈数据" />
+            )}
+          </Card>
+        </Col>
+        <Col span={12}>
+          <Card
+            title={<><ExperimentOutlined /> RAG 评估</>}
+            extra={
+              <Button size="small" loading={runningEval} onClick={handleRunEval}>
+                运行评估
+              </Button>
+            }
+          >
+            {evalRuns.length > 0 ? (
+              <div className="space-y-2">
+                {evalRuns.slice(0, 3).map((run) => (
+                  <div key={run.id} className="flex items-center justify-between text-sm">
+                    <span>{run.name}</span>
+                    <div className="flex items-center gap-2">
+                      <Tag color={run.status === 'completed' ? 'green' : 'blue'}>{run.status}</Tag>
+                      <Text type="secondary">{run.passed_cases}/{run.total_cases} 通过</Text>
+                      <Text strong>{(run.avg_score * 100).toFixed(0)}%</Text>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无评估运行，点击右上角开始" />
+            )}
+          </Card>
+        </Col>
+      </Row>
 
       {/* 运行列表 */}
       <Card title="Agent 运行记录">

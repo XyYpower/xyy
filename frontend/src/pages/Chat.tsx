@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Empty, Input, List, Space, Tag, Typography, message } from 'antd'
-import { DeleteOutlined, MessageOutlined, PlusOutlined, SendOutlined } from '@ant-design/icons'
+import { DeleteOutlined, MessageOutlined, PlusOutlined, SendOutlined, LikeOutlined, DislikeOutlined } from '@ant-design/icons'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import { chatApi, type Conversation, type Message } from '../api/chat'
 import { streamChat } from '../api/streamClient'
+import { evalApi } from '../api/eval'
 
 const { Text, Title } = Typography
 const { TextArea } = Input
@@ -255,6 +256,18 @@ export default function Chat() {
 
 function MessageBubble({ message: item }: { message: Message }) {
   const isUser = item.role === 'user'
+  const [feedbackGiven, setFeedbackGiven] = useState<string | null>(null)
+
+  const handleFeedback = async (rating: string) => {
+    if (!item.id || item.id.startsWith('local-')) return
+    try {
+      await evalApi.submitFeedback({ message_id: item.id, rating })
+      setFeedbackGiven(rating)
+    } catch {
+      // 静默
+    }
+  }
+
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div className={`max-w-[78%] rounded-lg border p-4 ${isUser ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-gray-200'}`}>
@@ -273,6 +286,30 @@ function MessageBubble({ message: item }: { message: Message }) {
             {item.sources.map((source) => (
               <Tag key={source.note_id} color="blue">{source.title}</Tag>
             ))}
+          </div>
+        )}
+        {!isUser && !item.id.startsWith('local-') && (
+          <div className="mt-2 pt-2 border-t border-gray-100 flex gap-2">
+            {feedbackGiven ? (
+              <Text type="secondary" className="text-xs">
+                {feedbackGiven === 'helpful' ? '感谢反馈' : '已收到反馈，会持续改进'}
+              </Text>
+            ) : (
+              <>
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<LikeOutlined />}
+                  onClick={() => handleFeedback('helpful')}
+                />
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<DislikeOutlined />}
+                  onClick={() => handleFeedback('not_helpful')}
+                />
+              </>
+            )}
           </div>
         )}
       </div>
