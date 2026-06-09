@@ -5,7 +5,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.router import api_router
 from app.config import get_settings
 from app.agents.tools import register_all_tools
-from app.mcp.server import get_mcp_app
 
 settings = get_settings()
 
@@ -32,11 +31,17 @@ app.add_middleware(
 
 app.include_router(api_router)
 
-# 挂载 MCP SSE 端点
-mcp_app = get_mcp_app()
-app.mount("/mcp", mcp_app)
+# 挂载 MCP SSE 端点（默认关闭，需配置 KNOWBASE_MCP_ENABLED=true）
+if settings.KNOWBASE_MCP_ENABLED:
+    from app.mcp.server import get_mcp_app
+    mcp_app = get_mcp_app()
+    app.mount("/mcp", mcp_app)
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "mcp_endpoint": "/mcp/sse"}
+    return {
+        "status": "ok",
+        "mcp_enabled": settings.KNOWBASE_MCP_ENABLED,
+        "mcp_endpoint": "/mcp/sse" if settings.KNOWBASE_MCP_ENABLED else None,
+    }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Button, Input, Card, Tag, Typography, List, message, Spin, Empty } from 'antd'
+import { Button, Input, Card, Tag, Typography, List, Space, message, Spin, Empty } from 'antd'
 import {
   ThunderboltOutlined,
   ClockCircleOutlined,
@@ -7,7 +7,7 @@ import {
   AimOutlined,
 } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
-import { workspaceApi, type DiagnosisResult, type PlanResult, type LearningTask } from '../api/workspace'
+import { workspaceApi, type DiagnosisResult, type PlanResult, type PlanPreview, type LearningTask } from '../api/workspace'
 
 const { Title, Text, Paragraph } = Typography
 
@@ -31,8 +31,11 @@ export default function AgentWorkspace() {
   const [running, setRunning] = useState(false)
   const [diagnosis, setDiagnosis] = useState<DiagnosisResult | null>(null)
   const [plan, setPlan] = useState<PlanResult | null>(null)
+  const [planPreview, setPlanPreview] = useState<PlanPreview | null>(null)
+  const [pendingRunId, setPendingRunId] = useState<string | null>(null)
   const [todayTasks, setTodayTasks] = useState<LearningTask[]>([])
   const [loadingTasks, setLoadingTasks] = useState(false)
+  const [approving, setApproving] = useState(false)
 
   useEffect(() => {
     fetchTodayTasks()
@@ -58,16 +61,49 @@ export default function AgentWorkspace() {
     setRunning(true)
     setDiagnosis(null)
     setPlan(null)
+    setPlanPreview(null)
+    setPendingRunId(null)
     try {
       const res = await workspaceApi.diagnoseAndPlan(goal.trim())
       setDiagnosis(res.data.diagnosis)
-      setPlan(res.data.plan)
-      message.success('诊断和规划完成')
-      fetchTodayTasks()
+      if (res.data.status === 'waiting_approval') {
+        setPlanPreview(res.data.plan_preview)
+        setPendingRunId(res.data.run_id)
+        message.info('计划已生成，请确认是否采纳')
+      }
     } catch {
       message.error('运行失败，请重试')
     } finally {
       setRunning(false)
+    }
+  }
+
+  const handleApprove = async () => {
+    if (!pendingRunId) return
+    setApproving(true)
+    try {
+      const res = await workspaceApi.approvePlan(pendingRunId)
+      setPlan(res.data.plan)
+      setPlanPreview(null)
+      setPendingRunId(null)
+      message.success('计划已确认，任务已创建')
+      fetchTodayTasks()
+    } catch {
+      message.error('确认失败')
+    } finally {
+      setApproving(false)
+    }
+  }
+
+  const handleReject = async () => {
+    if (!pendingRunId) return
+    try {
+      await workspaceApi.rejectPlan(pendingRunId)
+      setPlanPreview(null)
+      setPendingRunId(null)
+      message.info('计划已取消')
+    } catch {
+      message.error('操作失败')
     }
   }
 
@@ -146,9 +182,51 @@ export default function AgentWorkspace() {
         </Card>
       )}
 
-      {/* 规划结果 */}
+      {/* 计划预览（待审批） */}
+      {planPreview && pendingRunId && (
+        <Card
+          className="mb-4 border-orange-200"
+          title={<><RocketOutlined /> 学习计划预览 <Tag color="orange">待确认</Tag></>}
+          extra={
+            <Space>
+              <Button type="primary" loading={approving} onClick={handleApprove}>确认采纳</Button>
+              <Button danger onClick={handleReject}>拒绝</Button>
+            </Space>
+          }
+        >
+          <div className="mb-3">
+            <Text strong className="text-lg">{planPreview.name}</Text>
+            <div className="text-gray-500 mt-1">{planPreview.description}</div>
+          </div>
+          <div className="flex gap-4 mb-3">
+            <Tag color="blue">{planPreview.modules_count} 个模块</Tag>
+            <Tag color="green">{planPreview.tasks_count} 个任务</Tag>
+          </div>
+          {planPreview.modules.length > 0 && (
+            <div className="space-y-3">
+              {planPreview.modules.map((mod, i) => (
+                <div key={i} className="border border-gray-100 rounded p-3">
+                  <Text strong>{mod.title}</Text>
+                  {mod.description && <div className="text-xs text-gray-500 mt-1">{mod.description}</div>}
+                  <div className="mt-2 space-y-1">
+                    {mod.topics.map((t, j) => (
+                      <div key={j} className="text-sm flex items-center gap-2">
+                        <ClockCircleOutlined className="text-gray-400" />
+                        <span>{t.title}</span>
+                        {t.objective && <Text type="secondary" className="text-xs">— {t.objective}</Text>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* 已确认的计划 */}
       {plan && (
-        <Card className="mb-4" title={<><RocketOutlined /> 学习计划</>}>
+        <Card className="mb-4" title={<><RocketOutlined /> 学习计划 <Tag color="green">已确认</Tag></>}>
           <div className="mb-3">
             <Text strong className="text-lg">{plan.name}</Text>
             <div className="text-gray-500 mt-1">{plan.description}</div>

@@ -199,15 +199,22 @@ export default function Settings() {
         <section className="bg-white border border-gray-200 rounded-lg p-5">
           <Title level={4}>MCP Server</Title>
           <Text type="secondary">
-            KnowBase 暴露了 MCP（Model Context Protocol）端点，可以让 Claude Desktop、Cursor 等 AI 工具直接访问你的知识库。
+            KnowBase 支持 MCP（Model Context Protocol），可以让 Claude Desktop、Cursor 等 AI 工具直接访问你的知识库。
           </Text>
           <div className="mt-3 space-y-2">
-            <div className="bg-gray-50 rounded p-3 font-mono text-sm">
-              <div className="text-gray-500 mb-1">SSE 端点：</div>
-              <div>http://localhost:8000/mcp/sse</div>
+            <div className="bg-yellow-50 border border-yellow-200 rounded p-3 text-sm">
+              <Text strong className="text-yellow-700">默认关闭</Text>
+              <div className="text-yellow-600 mt-1">
+                MCP 需要在环境变量中显式启用。在 <code>.env</code> 文件中配置：
+              </div>
+              <div className="bg-gray-800 text-green-400 rounded p-2 mt-2 font-mono text-xs">
+                KNOWBASE_MCP_ENABLED=true<br/>
+                KNOWBASE_MCP_USER_ID=你的用户ID<br/>
+                KNOWBASE_MCP_TOKEN=你的访问令牌
+              </div>
             </div>
             <div className="text-sm text-gray-500">
-              <p className="mb-1"><strong>可用工具：</strong></p>
+              <p className="mb-1"><strong>启用后可用工具：</strong></p>
               <ul className="list-disc list-inside space-y-1">
                 <li><code>search_notes</code> — 搜索知识点</li>
                 <li><code>get_note</code> — 获取知识点详情</li>

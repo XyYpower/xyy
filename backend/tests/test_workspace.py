@@ -1,4 +1,4 @@
-"""V3.2 Agent Workspace 集成测试。"""
+"""V4.1 Agent Workspace 集成测试（preview/approve/reject 流程）。"""
 
 import uuid
 
@@ -20,7 +20,7 @@ async def _require_database() -> None:
         async with async_session() as session:
             await session.execute(text("select 1"))
     except Exception as exc:
-        pytest.skip(f"database is not available for V3.2 workspace test: {exc}")
+        pytest.skip(f"database is not available for V4.1 workspace test: {exc}")
 
 
 async def _cleanup_users(usernames: list[str]) -> None:
@@ -28,7 +28,6 @@ async def _cleanup_users(usernames: list[str]) -> None:
         result = await session.execute(select(User.id).where(User.username.in_(usernames)))
         user_ids = result.scalars().all()
         if user_ids:
-            # 按依赖顺序删除
             await session.execute(delete(LearningTask).where(LearningTask.user_id.in_(user_ids)))
             for uid in user_ids:
                 paths = (await session.execute(select(LearningPath.id).where(LearningPath.user_id == uid))).scalars().all()
@@ -53,11 +52,11 @@ def _auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-async def test_workspace_diagnose_and_plan_creates_tasks():
-    """验证 diagnose-and-plan 端点能创建结构化路径和任务。"""
+async def test_diagnose_and_plan_preview_then_approve():
+    """验证 V4.1 流程：诊断+规划预览 → 审批通过 → 任务创建。"""
     await _require_database()
     suffix = uuid.uuid4().hex[:10]
-    username = f"v32_ws_{suffix}"
+    username = f"v41_ws_{suffix}"
 
     try:
         transport = ASGITransport(app=app)
@@ -65,7 +64,7 @@ async def test_workspace_diagnose_and_plan_creates_tasks():
             token = await _register(client, username)
             headers = _auth(token)
 
-            # 运行诊断 + 规划
+            # Step 1: 诊断 + 规划预览
             res = await client.post(
                 "/api/v1/workspace/diagnose-and-plan",
                 headers=headers,
@@ -74,34 +73,91 @@ async def test_workspace_diagnose_and_plan_creates_tasks():
             assert res.status_code == 200, res.text
             data = res.json()["data"]
 
+            # 验证返回 waiting_approval 状态
+            assert data["status"] == "waiting_approval"
+            run_id = data["run_id"]
+
             # 验证诊断结果
             assert "diagnosis" in data
             assert "summary" in data["diagnosis"]
 
-            # 验证规划结果
-            assert "plan" in data
-            plan = data["plan"]
-            assert plan["path_id"]
-            assert plan["modules_count"] > 0
-            assert plan["tasks_count"] > 0
+            # 验证计划预览（不落库）
+            assert "plan_preview" in data
+            preview = data["plan_preview"]
+            assert preview["modules_count"] > 0
+            assert preview["tasks_count"] > 0
 
-            # 验证今日任务
-            tasks_res = await client.get("/api/v1/workspace/tasks/today", headers=headers)
+            # 验证此时没有任务被创建
+            tasks_res = await client.get("/api/v1/workspace/tasks", headers=headers)
             assert tasks_res.status_code == 200
-            tasks_data = tasks_res.json()["data"]
-            # 任务可能 due_at 在未来，所以不一定在今日任务中
-            assert "tasks" in tasks_data
+            assert tasks_res.json()["data"]["total"] == 0
 
-            # 验证 AgentRun 被记录
+            # Step 2: 审批通过
+            approve_res = await client.post(
+                f"/api/v1/workspace/plans/{run_id}/approve",
+                headers=headers,
+            )
+            assert approve_res.status_code == 200, approve_res.text
+            approve_data = approve_res.json()["data"]
+            assert approve_data["status"] == "completed"
+            assert approve_data["plan"]["tasks_count"] > 0
+
+            # 验证任务已创建
+            tasks_res2 = await client.get("/api/v1/workspace/tasks", headers=headers)
+            assert tasks_res2.status_code == 200
+            assert tasks_res2.json()["data"]["total"] > 0
+
+            # 验证学习路径已创建
+            paths_res = await client.get("/api/v1/paths", headers=headers)
+            assert paths_res.status_code == 200
+            assert len(paths_res.json()["data"]) >= 1
+
+            # 验证 AgentRun 状态
             runs_res = await client.get("/api/v1/traces/runs", headers=headers)
             assert runs_res.status_code == 200
             assert runs_res.json()["data"]["total"] >= 1
 
-            # 验证学习路径可通过 paths API 查询
+    finally:
+        await _cleanup_users([username])
+
+
+async def test_diagnose_and_plan_reject_creates_no_tasks():
+    """验证 V4.1 流程：拒绝审批不创建任何任务。"""
+    await _require_database()
+    suffix = uuid.uuid4().hex[:10]
+    username = f"v41_reject_{suffix}"
+
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            token = await _register(client, username)
+            headers = _auth(token)
+
+            # 诊断 + 规划预览
+            res = await client.post(
+                "/api/v1/workspace/diagnose-and-plan",
+                headers=headers,
+                params={"goal": "学习 Python"},
+            )
+            assert res.status_code == 200
+            run_id = res.json()["data"]["run_id"]
+            assert res.json()["data"]["status"] == "waiting_approval"
+
+            # 拒绝
+            reject_res = await client.post(
+                f"/api/v1/workspace/plans/{run_id}/reject",
+                headers=headers,
+            )
+            assert reject_res.status_code == 200
+            assert reject_res.json()["data"]["status"] == "cancelled"
+
+            # 验证没有任务被创建
+            tasks_res = await client.get("/api/v1/workspace/tasks", headers=headers)
+            assert tasks_res.json()["data"]["total"] == 0
+
+            # 验证没有学习路径被创建
             paths_res = await client.get("/api/v1/paths", headers=headers)
-            assert paths_res.status_code == 200
-            paths = paths_res.json()["data"]
-            assert len(paths) >= 1
+            assert len(paths_res.json()["data"]) == 0
 
     finally:
         await _cleanup_users([username])
@@ -111,7 +167,7 @@ async def test_task_completion():
     """验证任务完成接口。"""
     await _require_database()
     suffix = uuid.uuid4().hex[:10]
-    username = f"v32_task_{suffix}"
+    username = f"v41_task_{suffix}"
 
     try:
         transport = ASGITransport(app=app)
@@ -119,12 +175,14 @@ async def test_task_completion():
             token = await _register(client, username)
             headers = _auth(token)
 
-            # 先创建一个路径和任务
-            await client.post(
+            # 创建路径和任务（通过 approve 流程）
+            res = await client.post(
                 "/api/v1/workspace/diagnose-and-plan",
                 headers=headers,
                 params={"goal": "学习 Python"},
             )
+            run_id = res.json()["data"]["run_id"]
+            await client.post(f"/api/v1/workspace/plans/{run_id}/approve", headers=headers)
 
             # 查询所有任务
             all_tasks = await client.get(

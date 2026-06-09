@@ -48,7 +48,7 @@ async def run_planner(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """运行规划 Agent，可选先诊断。"""
+    """运行规划 Agent，生成计划预览（不落库任务）。可选先诊断。"""
     diagnosis_result = None
     if run_diagnosis_first:
         diagnosis_result = await diagnosis.diagnose(db, current_user.id)
@@ -58,16 +58,20 @@ async def run_planner(
         goal=goal,
         input_data={"goal": goal, "has_diagnosis": diagnosis_result is not None},
     )
-    step = await runtime.create_step(db, run.id, 1, "PlannerAgent", "plan")
+    step = await runtime.create_step(db, run.id, 1, "PlannerAgent", "plan_preview")
 
     try:
-        result = await planner.plan(db, current_user.id, goal, diagnosis_result)
-        await runtime.complete_step(db, step.id, output=result, latency_ms=0)
-        await runtime.update_run_status(db, run.id, "completed", output=result)
+        preview = await planner.preview_plan(goal, diagnosis_result)
+        await runtime.complete_step(db, step.id, output=preview)
+        await runtime.update_run_status(db, run.id, "waiting_approval", output={
+            "diagnosis": diagnosis_result,
+            "plan_preview": preview,
+        })
         await db.commit()
         return success({
             "run_id": str(run.id),
-            "plan": result,
+            "status": "waiting_approval",
+            "plan_preview": preview,
             "diagnosis": diagnosis_result,
         })
     except Exception as exc:
@@ -77,34 +81,92 @@ async def run_planner(
         raise HTTPException(status_code=500, detail=f"规划失败: {exc}")
 
 
+@router.post("/plans/{run_id}/approve")
+async def approve_plan(
+    run_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """审批通过：将计划预览落库为学习路径和任务。"""
+    run = await runtime.get_run_detail(db, current_user.id, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    if run.status != "waiting_approval":
+        raise HTTPException(status_code=400, detail=f"Run status is {run.status}, expected waiting_approval")
+
+    plan_preview = (run.output or {}).get("plan_preview")
+    if not plan_preview:
+        raise HTTPException(status_code=400, detail="No plan preview found")
+
+    commit_result = await planner.commit_plan(db, current_user.id, plan_preview, agent_run_id=run.id)
+    await runtime.update_run_status(db, run.id, "completed", output={
+        "plan_preview": plan_preview,
+        "committed": commit_result,
+    })
+    await db.commit()
+    return success({"run_id": str(run.id), "status": "completed", "plan": commit_result})
+
+
+@router.post("/plans/{run_id}/reject")
+async def reject_plan(
+    run_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """审批拒绝：不创建任何任务。"""
+    run = await runtime.get_run_detail(db, current_user.id, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    if run.status != "waiting_approval":
+        raise HTTPException(status_code=400, detail=f"Run status is {run.status}, expected waiting_approval")
+
+    await runtime.update_run_status(db, run.id, "cancelled", error_message="用户拒绝了计划")
+    await db.commit()
+    return success({"run_id": str(run.id), "status": "cancelled"})
+
+
 @router.post("/diagnose-and-plan")
 async def run_diagnose_and_plan(
     goal: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """一站式：诊断 + 规划。"""
-    # 诊断
+    """一站式：诊断 + 规划预览（需要后续 approve 才落库任务）。"""
     run = await runtime.start_run(db, current_user.id, "diagnosis", goal=goal)
+
+    # 诊断
     step1 = await runtime.create_step(db, run.id, 1, "DiagnosisAgent", "diagnose")
-    diagnosis_result = await diagnosis.diagnose(db, current_user.id)
-    await runtime.complete_step(db, step1.id, output=diagnosis_result)
+    try:
+        diagnosis_result = await diagnosis.diagnose(db, current_user.id)
+        await runtime.complete_step(db, step1.id, output=diagnosis_result)
+    except Exception as exc:
+        await runtime.fail_step(db, step1.id, str(exc))
+        await runtime.update_run_status(db, run.id, "failed", error_message=f"诊断失败: {exc}")
+        await db.commit()
+        raise HTTPException(status_code=500, detail=f"诊断失败: {exc}")
 
-    # 规划
-    step2 = await runtime.create_step(db, run.id, 2, "PlannerAgent", "plan")
-    plan_result = await planner.plan(db, current_user.id, goal, diagnosis_result)
-    await runtime.complete_step(db, step2.id, output=plan_result)
+    # 规划预览
+    step2 = await runtime.create_step(db, run.id, 2, "PlannerAgent", "plan_preview")
+    try:
+        preview = await planner.preview_plan(goal, diagnosis_result)
+        await runtime.complete_step(db, step2.id, output=preview)
+    except Exception as exc:
+        await runtime.fail_step(db, step2.id, str(exc))
+        await runtime.update_run_status(db, run.id, "failed", error_message=f"规划失败: {exc}")
+        await db.commit()
+        raise HTTPException(status_code=500, detail=f"规划失败: {exc}")
 
-    await runtime.update_run_status(db, run.id, "completed", output={
+    await runtime.update_run_status(db, run.id, "waiting_approval", output={
         "diagnosis": diagnosis_result,
-        "plan": plan_result,
+        "plan_preview": preview,
     })
     await db.commit()
 
     return success({
         "run_id": str(run.id),
+        "status": "waiting_approval",
         "diagnosis": diagnosis_result,
-        "plan": plan_result,
+        "plan_preview": preview,
     })
 
 

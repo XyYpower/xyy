@@ -1,6 +1,7 @@
 """KnowBase MCP Server：让外部 IDE/Agent 调用 KnowBase 的资源和工具。
 
 通过 SSE transport 挂载到 FastAPI，客户端可通过 HTTP 连接。
+安全要求：必须配置 KNOWBASE_MCP_USER_ID 才能使用。
 """
 
 import json
@@ -10,6 +11,7 @@ import uuid
 from mcp.server.fastmcp import FastMCP
 
 from app.database import async_session
+from app.config import get_settings
 from app.models.user import User
 from app.models.note import Note
 from app.services import note_service, review_service, interview_service, path_service
@@ -39,7 +41,7 @@ async def search_notes(query: str, limit: int = 5) -> str:
         limit: 返回结果数量（默认 5）
     """
     async with async_session() as db:
-        user = await _get_default_user(db)
+        user = await _get_configured_user(db)
         if not user:
             return json.dumps({"error": "没有可用用户"}, ensure_ascii=False)
 
@@ -73,7 +75,7 @@ async def get_note(note_id: str) -> str:
         note_id: 知识点 UUID
     """
     async with async_session() as db:
-        user = await _get_default_user(db)
+        user = await _get_configured_user(db)
         if not user:
             return json.dumps({"error": "没有可用用户"}, ensure_ascii=False)
 
@@ -103,7 +105,7 @@ async def create_note_draft(title: str, content: str = "", tag_names: list[str] 
         tag_names: 标签名称列表（可选）
     """
     async with async_session() as db:
-        user = await _get_default_user(db)
+        user = await _get_configured_user(db)
         if not user:
             return json.dumps({"error": "没有可用用户"}, ensure_ascii=False)
 
@@ -127,7 +129,7 @@ async def get_review_cards(limit: int = 10) -> str:
         limit: 返回卡片数量（默认 10）
     """
     async with async_session() as db:
-        user = await _get_default_user(db)
+        user = await _get_configured_user(db)
         if not user:
             return json.dumps({"error": "没有可用用户"}, ensure_ascii=False)
 
@@ -175,7 +177,7 @@ async def generate_interview_questions(topic: str, num_questions: int = 3) -> st
 async def read_note_resource(note_id: str) -> str:
     """读取知识点资源。"""
     async with async_session() as db:
-        user = await _get_default_user(db)
+        user = await _get_configured_user(db)
         if not user:
             return "没有可用用户"
 
@@ -190,7 +192,7 @@ async def read_note_resource(note_id: str) -> str:
 async def read_today_reviews() -> str:
     """读取今日复习资源。"""
     async with async_session() as db:
-        user = await _get_default_user(db)
+        user = await _get_configured_user(db)
         if not user:
             return "没有可用用户"
 
@@ -208,7 +210,7 @@ async def read_today_reviews() -> str:
 async def read_learning_paths() -> str:
     """读取学习路径列表。"""
     async with async_session() as db:
-        user = await _get_default_user(db)
+        user = await _get_configured_user(db)
         if not user:
             return "没有可用用户"
 
@@ -237,7 +239,7 @@ async def prepare_agent_engineer_interview(focus_area: str = "") -> str:
         focus_area: 重点准备方向（如 "RAG"、"工具调用"、"多Agent编排"，可选）
     """
     async with async_session() as db:
-        user = await _get_default_user(db)
+        user = await _get_configured_user(db)
         if not user:
             return "没有可用用户，请先注册并添加知识点。"
 
@@ -280,7 +282,7 @@ async def explain_knowledge_gap(topic: str) -> str:
         topic: 要分析的知识点主题
     """
     async with async_session() as db:
-        user = await _get_default_user(db)
+        user = await _get_configured_user(db)
         if not user:
             return "没有可用用户。"
 
@@ -315,7 +317,7 @@ async def generate_project_case_study(project_name: str = "KnowBase") -> str:
         project_name: 项目名称（默认 KnowBase）
     """
     async with async_session() as db:
-        user = await _get_default_user(db)
+        user = await _get_configured_user(db)
         stats = {}
         if user:
             from sqlalchemy import func, select
@@ -340,11 +342,17 @@ async def generate_project_case_study(project_name: str = "KnowBase") -> str:
 # ── 辅助函数 ──────────────────────
 
 
-async def _get_default_user(db) -> User | None:
-    """获取默认用户（MCP 本地使用场景，取第一个用户）。"""
-    from sqlalchemy import select
-    result = await db.execute(select(User).order_by(User.created_at).limit(1))
-    return result.scalar_one_or_none()
+async def _get_configured_user(db) -> User | None:
+    """获取 MCP 配置的绑定用户。未配置时返回 None。"""
+    settings = get_settings()
+    if not settings.KNOWBASE_MCP_USER_ID:
+        return None
+    try:
+        user_id = uuid.UUID(settings.KNOWBASE_MCP_USER_ID)
+    except ValueError:
+        logger.warning("KNOWBASE_MCP_USER_ID is not a valid UUID: %s", settings.KNOWBASE_MCP_USER_ID)
+        return None
+    return await db.get(User, user_id)
 
 
 def get_mcp_app():

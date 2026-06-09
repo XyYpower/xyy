@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
 
+    KNOWBASE_MCP_ENABLED: bool = False
+    KNOWBASE_MCP_USER_ID: str = ""
+    KNOWBASE_MCP_TOKEN: str = ""
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

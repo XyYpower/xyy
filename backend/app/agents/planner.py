@@ -1,4 +1,7 @@
-"""PlannerAgent：根据诊断结果和学习目标生成结构化学习路径。"""
+"""PlannerAgent：根据诊断结果和学习目标生成结构化学习路径。
+
+V4.1 拆分为 preview_plan（只生成草稿）和 commit_plan（审批后落库）。
+"""
 
 import json
 import logging
@@ -21,13 +24,11 @@ PLANNER_PROMPT = (
 )
 
 
-async def plan(
-    db: AsyncSession,
-    user_id: uuid.UUID,
+async def preview_plan(
     goal: str,
     diagnosis: dict | None = None,
 ) -> dict:
-    """生成结构化学习路径并落库。"""
+    """生成学习计划预览（不落库）。返回结构化草稿。"""
 
     context = {"goal": goal}
     if diagnosis:
@@ -48,19 +49,38 @@ async def plan(
             logger.warning("LLM planning failed; using fallback", exc_info=True)
             payload = _fallback_plan(goal, diagnosis)
 
-    # 创建学习路径
+    # 计算任务总数
+    tasks_count = sum(len(m.get("topics", [])) for m in payload["modules"])
+
+    return {
+        "name": payload["name"],
+        "description": payload["description"],
+        "modules": payload["modules"],
+        "legacy_modules": payload.get("legacy_modules", []),
+        "modules_count": len(payload["modules"]),
+        "tasks_count": tasks_count,
+    }
+
+
+async def commit_plan(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    plan_preview: dict,
+    agent_run_id: uuid.UUID | None = None,
+) -> dict:
+    """审批通过后将计划落库。创建 LearningPath + modules + topics + tasks。"""
+
     path = LearningPath(
         user_id=user_id,
-        name=payload["name"],
-        description=payload["description"],
-        modules_json=payload.get("legacy_modules", []),
+        name=plan_preview["name"],
+        description=plan_preview["description"],
+        modules_json=plan_preview.get("legacy_modules", []),
     )
     db.add(path)
     await db.flush()
 
-    # 创建结构化模块和 topic
     tasks = []
-    for mod_index, module in enumerate(payload["modules"]):
+    for mod_index, module in enumerate(plan_preview.get("modules", [])):
         mod = LearningPathModule(
             path_id=path.id,
             title=module["title"],
@@ -80,7 +100,6 @@ async def plan(
             db.add(tp)
             await db.flush()
 
-            # 为每个 topic 创建初始学习任务
             task = LearningTask(
                 user_id=user_id,
                 topic_id=tp.id,
@@ -88,6 +107,7 @@ async def plan(
                 title=f"学习：{topic['title']}",
                 description=topic.get("objective", ""),
                 due_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(days=mod_index * 7 + topic_index),
+                agent_run_id=agent_run_id,
             )
             db.add(task)
             tasks.append(task)
@@ -99,13 +119,24 @@ async def plan(
         "path_id": str(path.id),
         "name": path.name,
         "description": path.description,
-        "modules_count": len(payload["modules"]),
+        "modules_count": len(plan_preview.get("modules", [])),
         "tasks_count": len(tasks),
         "tasks": [
             {"title": t.title, "task_type": t.task_type, "due_at": t.due_at.isoformat() if t.due_at else None}
             for t in tasks[:20]
         ],
     }
+
+
+async def plan(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    goal: str,
+    diagnosis: dict | None = None,
+) -> dict:
+    """兼容旧接口：preview + commit 一步完成。"""
+    preview = await preview_plan(goal, diagnosis)
+    return await commit_plan(db, user_id, preview)
 
 
 def _normalize_plan(result: dict, goal: str) -> dict:

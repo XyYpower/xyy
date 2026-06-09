@@ -12,6 +12,18 @@ export interface DiagnosisResult {
   next_steps: string[]
 }
 
+export interface PlanPreview {
+  name: string
+  description: string
+  modules: Array<{
+    title: string
+    description: string
+    topics: Array<{ title: string; objective: string }>
+  }>
+  modules_count: number
+  tasks_count: number
+}
+
 export interface PlanResult {
   path_id: string
   name: string
@@ -37,18 +49,35 @@ export interface LearningTask {
   topic_title?: string | null
 }
 
+export interface PlanPreviewResponse {
+  run_id: string
+  status: string
+  plan_preview: PlanPreview
+  diagnosis: DiagnosisResult | null
+}
+
 export const workspaceApi = {
   diagnose: () =>
     client.post<any, ApiResponse<{ run_id: string; diagnosis: DiagnosisResult }>>('/workspace/diagnose'),
 
   plan: (goal: string, runDiagnosisFirst = true) =>
-    client.post<any, ApiResponse<{ run_id: string; plan: PlanResult; diagnosis: DiagnosisResult | null }>>(
+    client.post<any, ApiResponse<PlanPreviewResponse>>(
       '/workspace/plan', null, { params: { goal, run_diagnosis_first: runDiagnosisFirst } }
     ),
 
   diagnoseAndPlan: (goal: string) =>
-    client.post<any, ApiResponse<{ run_id: string; diagnosis: DiagnosisResult; plan: PlanResult }>>(
+    client.post<any, ApiResponse<PlanPreviewResponse>>(
       '/workspace/diagnose-and-plan', null, { params: { goal } }
+    ),
+
+  approvePlan: (runId: string) =>
+    client.post<any, ApiResponse<{ run_id: string; status: string; plan: PlanResult }>>(
+      `/workspace/plans/${runId}/approve`
+    ),
+
+  rejectPlan: (runId: string) =>
+    client.post<any, ApiResponse<{ run_id: string; status: string }>>(
+      `/workspace/plans/${runId}/reject`
     ),
 
   getTodayTasks: () =>

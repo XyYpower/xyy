@@ -73,7 +73,8 @@ knowbase/
 │   ├── V2.2-task.md       # V2.2 任务书（已完成）
 │   ├── V2.3-task.md       # V2.3 任务书（已完成）
 │   ├── V3.0-task.md       # V3.0 任务书（已完成）
-│   └── V3.1-agentic-redesign.md # AI Agent 应用开发重设计方案（待实现）
+│   ├── V3.1-agentic-redesign.md # Agentic Learning OS 重设计方案（已实现至 V4.0）
+│   └── V4.1-quality-ux-redesign.md # 质量加固与主体验升级方案（待实现）
 ├── docker-compose.yml     # PostgreSQL + pgvector
 ├── .env.example           # 环境变量模板
 ├── .gitignore
@@ -253,7 +254,9 @@ knowbase/
 | GET | `/traces/stats` | Agent + AI 使用统计 | ✅ |
 | POST | `/workspace/diagnose` | 运行诊断 Agent | ✅ |
 | POST | `/workspace/plan` | 运行规划 Agent | ✅ |
-| POST | `/workspace/diagnose-and-plan` | 一站式诊断 + 规划 | ✅ |
+| POST | `/workspace/diagnose-and-plan` | 一站式诊断 + 规划预览（返回 waiting_approval） | ✅ |
+| POST | `/workspace/plans/{run_id}/approve` | 审批通过，落库任务 | ✅ |
+| POST | `/workspace/plans/{run_id}/reject` | 审批拒绝，不创建任务 | ✅ |
 | GET | `/workspace/tasks/today` | 今日学习任务 | ✅ |
 | GET | `/workspace/tasks` | 任务列表（可按状态筛选） | ✅ |
 | PUT | `/workspace/tasks/{id}/complete` | 标记任务完成 | ✅ |
@@ -591,9 +594,10 @@ npm run dev   # http://localhost:5173
 - [x] Markdown 编辑器（分屏编辑预览）
 - [x] NoteDetail 页面整合升级
 
-### Phase 4 — Agentic Learning OS（设计完成，待实现）
+### Phase 4 — Agentic Learning OS（V3.1-V4.0 已完成，V4.1 待实现）
 
-> 详细重设计方案见 [V3.1-agentic-redesign.md](V3.1-agentic-redesign.md)
+> Agentic Learning OS 原始重设计方案见 [V3.1-agentic-redesign.md](V3.1-agentic-redesign.md)
+> V4.1 质量加固与主体验升级方案见 [V4.1-quality-ux-redesign.md](V4.1-quality-ux-redesign.md)
 > 目标：把 KnowBase 从 AI 编程知识学习工具升级为可展示 AI Agent 应用开发能力的 Agentic Learning OS。
 
 **V3.1 — Agent Runtime + Trace 基础**
@@ -646,6 +650,15 @@ npm run dev   # http://localhost:5173
 - [x] 支持暂停/恢复（thread_id + approval_result）
 - [x] Workspace API 增加 /workflow/plan 和 /workflow/resume 端点
 
+**V4.1 — 质量加固与主体验升级**
+- [x] MCP 安全边界：默认关闭（KNOWBASE_MCP_ENABLED=false）、绑定明确用户（KNOWBASE_MCP_USER_ID）、移除默认第一个用户访问
+- [x] Human-in-the-loop 真实落地：planner 拆为 preview_plan/commit_plan；diagnose-and-plan 返回 waiting_approval；新增 approve/reject 端点；拒绝不创建任务
+- [x] Agent 失败状态统一化：diagnose-and-plan 诊断/规划每步独立 try/except，失败时 run/step 标记 failed
+- [ ] Tool Registry 接入真实 tool_calls，并让 requires_approval 参与写工具执行
+- [ ] 学习路径统一结构化模型：普通路径生成也写 modules/topics/tasks
+- [ ] 前端工程质量归零：修复 lint/build 问题
+- [ ] Dashboard / Agent Workspace / Trace Lab / Portfolio 主体验升级
+
 ---
 
 ## 8. 开发约定
@@ -685,6 +698,9 @@ npm run dev   # http://localhost:5173
 13. ~~**前端构建体积继续偏大** — V2.3 引入 Chat/Interview/Markdown 后主 chunk 约 1.5MB，后续可用路由级动态导入拆分~~ ✅ V3.0 路由懒加载已拆分，主 chunk 降至 ~773KB
 14. **SSE 使用 EventSourceResponse** — V2.3 Review 后已切换到 `sse-starlette`，并在流式输出时检查客户端断连，减少页面关闭后继续消耗 LLM API 的风险
 15. **Embedding 兜底不是语义向量** — 未配置 Embedding API key 时使用确定性 hash 向量，只保证流程可跑通，真实检索效果需要配置 OpenAI/GLM 等 embedding 服务
+16. **MCP 用户隔离待加固** — 当前 MCP Server 使用默认第一个用户作为本地场景兜底；V4.1 需改为默认关闭并绑定明确用户
+17. **LangGraph 审批语义待修正** — 当前规划节点会先创建学习路径和任务，再进入 approval；V4.1 需拆为 preview/commit，拒绝时不得落库任务
+18. **前端 lint/build 待归零** — 最近审查中 TypeScript 编译通过，但 lint 有多处 API `any` 和 hooks 规则问题；build 受本地 Tailwind native 依赖/Windows 权限问题影响失败
 
 ---
 
@@ -713,4 +729,6 @@ npm run dev   # http://localhost:5173
 | 2026-06-03 | V3.4 Portfolio Builder：项目技术报告 + 学习报告生成（LLM + 本地兜底）；Portfolio API（报告生成、Markdown 导出、Agent Run 回放）；前端 Portfolio 页面（数据总览、报告展示、Agent Run 时间线、导出）；侧边栏新增 Portfolio 导航 |
 | 2026-06-03 | V4.0 MCP Server：安装 mcp SDK；创建 MCP Server 模块（FastMCP + SSE transport）；暴露 5 个 Tools + 3 个 Resources + 3 个 Prompts；挂载 /mcp/sse 端点；Settings 增加 MCP 配置说明 |
 | 2026-06-03 | V4.0 LangGraph Adapter：安装 langgraph；创建 StateGraph 学习规划工作流（diagnose→plan→wait_approval→finalize）；MemorySaver checkpointer 支持暂停/恢复；Workspace API 增加 /workflow/plan 和 /workflow/resume；前端 UX 优化（Ctrl+S、删除确认、新用户引导） |
+| 2026-06-09 | V4.1.1 安全与正确性：MCP 默认关闭 + 绑定明确用户（KNOWBASE_MCP_ENABLED/USER_ID/TOKEN）；planner 拆为 preview_plan/commit_plan；diagnose-and-plan 返回 waiting_approval + approve/reject 端点；拒绝审批不创建任务；Agent 失败状态统一化；前端 AgentWorkspace 适配 preview/approve/reject 流程；后端测试增至 57 个 |
 | 2026-06-09 | 新增 V3.1 Agentic Redesign：规划 Agent Runtime、Tool Registry、Trace Lab、Agent Workspace、RAG 评估、Portfolio Builder、LangGraph/MCP 后续路线 |
+| 2026-06-09 | 新增 V4.1 质量加固与主体验升级设计：聚焦 MCP 安全、审批语义、失败 Trace、ToolCall 追踪、学习路径结构统一、前端工作台/Trace/Portfolio 体验升级 |
