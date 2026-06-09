@@ -1,38 +1,49 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { Spin } from 'antd'
 import AuthRoute from './components/AuthRoute'
 import Layout from './components/Layout'
-import Home from './pages/Home'
-import Notes from './pages/Notes'
-import NoteDetail from './pages/NoteDetail'
-import Chat from './pages/Chat'
 import Login from './pages/Login'
 import Register from './pages/Register'
-import Review from './pages/Review'
-import Import from './pages/Import'
-import Paths from './pages/Paths'
-import Interview from './pages/Interview'
-import Settings from './pages/Settings'
+
+const Home = lazy(() => import('./pages/Home'))
+const Notes = lazy(() => import('./pages/Notes'))
+const NoteDetail = lazy(() => import('./pages/NoteDetail'))
+const Chat = lazy(() => import('./pages/Chat'))
+const Review = lazy(() => import('./pages/Review'))
+const Interview = lazy(() => import('./pages/Interview'))
+const Import = lazy(() => import('./pages/Import'))
+const Paths = lazy(() => import('./pages/Paths'))
+const Settings = lazy(() => import('./pages/Settings'))
+
+const PageLoading = () => (
+  <div className="flex justify-center items-center p-16">
+    <Spin size="large" />
+  </div>
+)
 
 function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route element={<AuthRoute />}>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Home />} />
-          <Route path="notes" element={<Notes />} />
-          <Route path="notes/:id" element={<NoteDetail />} />
-          <Route path="chat" element={<Chat />} />
-          <Route path="review" element={<Review />} />
-          <Route path="interview" element={<Interview />} />
-          <Route path="import" element={<Import />} />
-          <Route path="paths" element={<Paths />} />
-          <Route path="settings" element={<Settings />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+    <Suspense fallback={<PageLoading />}>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route element={<AuthRoute />}>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Home />} />
+            <Route path="notes" element={<Notes />} />
+            <Route path="notes/:id" element={<NoteDetail />} />
+            <Route path="chat" element={<Chat />} />
+            <Route path="review" element={<Review />} />
+            <Route path="interview" element={<Interview />} />
+            <Route path="import" element={<Import />} />
+            <Route path="paths" element={<Paths />} />
+            <Route path="settings" element={<Settings />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
         </Route>
-      </Route>
-    </Routes>
+      </Routes>
+    </Suspense>
   )
 }
 

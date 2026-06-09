@@ -15,8 +15,20 @@ class CategoryOut(BaseModel):
     id: uuid.UUID
     name: str
     description: str | None = None
+    sort_order: int = 0
 
     model_config = {"from_attributes": True}
+
+
+class CategoryCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    description: str | None = None
+
+
+class CategoryUpdate(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=100)
+    description: str | None = None
+    sort_order: int | None = None
 
 
 class NoteCreate(BaseModel):

@@ -29,5 +29,11 @@ export const authApi = {
 
   me: () =>
     client.get<any, ApiResponse<User>>('/auth/me'),
+
+  updateProfile: (data: { email?: string; reminder_enabled?: boolean; reminder_time?: string }) =>
+    client.put<any, ApiResponse<User>>('/auth/profile', data),
+
+  changePassword: (data: { old_password: string; new_password: string }) =>
+    client.put<any, ApiResponse<null>>('/auth/password', data),
 }
 

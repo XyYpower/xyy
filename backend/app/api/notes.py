@@ -22,6 +22,7 @@ async def list_notes(
     tag_id: uuid.UUID | None = None,
     mastery_level: int | None = Query(None, ge=0, le=2),
     source_type: str | None = None,
+    is_favorite: bool | None = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -35,6 +36,7 @@ async def list_notes(
         tag_id,
         mastery_level,
         source_type,
+        is_favorite,
     )
     return success(PageResult(
         items=[NoteListItem.model_validate(n) for n in notes],
@@ -66,7 +68,8 @@ async def create_note(
     note = await note_service.create_note(db, data, current_user.id)
     await db.commit()
     background_tasks.add_task(review_service.generate_cards_for_note_task, current_user.id, note.id)
-    return success(NoteOut.model_validate(note))
+    loaded_note = await note_service.get_note(db, note.id, current_user.id)
+    return success(NoteOut.model_validate(loaded_note))
 
 
 @router.put("/{note_id}")
@@ -80,7 +83,8 @@ async def update_note(
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")
     updated = await note_service.update_note(db, note, data)
-    return success(NoteOut.model_validate(updated))
+    loaded_note = await note_service.get_note(db, updated.id, current_user.id)
+    return success(NoteOut.model_validate(loaded_note))
 
 
 @router.delete("/{note_id}")

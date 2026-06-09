@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Input, Card, Tag, Empty, Space, Modal, message } from 'antd'
-import { PlusOutlined, SearchOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Button, Input, Card, Tag, Empty, Space, Modal, Select, Switch, message } from 'antd'
+import { PlusOutlined, SearchOutlined, DeleteOutlined, StarOutlined, StarFilled, SettingOutlined } from '@ant-design/icons'
 import { noteApi, type Note } from '../api/notes'
+import { categoryApi, type Category } from '../api/categories'
+import CategoryManager from '../components/CategoryManager'
 
 export default function Notes() {
   const navigate = useNavigate()
@@ -10,16 +12,39 @@ export default function Notes() {
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [keyword, setKeyword] = useState('')
+  const [categoryId, setCategoryId] = useState<string | undefined>()
+  const [onlyFavorites, setOnlyFavorites] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [categories, setCategories] = useState<Category[]>([])
+  const [categoryManagerOpen, setCategoryManagerOpen] = useState(false)
+
+  const fetchCategories = async () => {
+    try {
+      const res = await categoryApi.list()
+      setCategories(res.data)
+    } catch {
+      // 静默失败
+    }
+  }
+
+  useEffect(() => {
+    fetchCategories()
+  }, [])
 
   useEffect(() => {
     fetchNotes()
-  }, [page])
+  }, [page, categoryId, onlyFavorites])
 
   const fetchNotes = async () => {
     setLoading(true)
     try {
-      const res = await noteApi.list({ page, page_size: 20, keyword: keyword || undefined })
+      const res = await noteApi.list({
+        page,
+        page_size: 20,
+        keyword: keyword || undefined,
+        category_id: categoryId,
+        is_favorite: onlyFavorites ? true : undefined,
+      })
       setNotes(res.data.items)
       setTotal(res.data.total)
     } catch {
@@ -50,6 +75,15 @@ export default function Notes() {
     })
   }
 
+  const handleToggleFavorite = async (note: Note) => {
+    try {
+      await noteApi.update(note.id, { is_favorite: !note.is_favorite })
+      setNotes(notes.map(n => n.id === note.id ? { ...n, is_favorite: !n.is_favorite } : n))
+    } catch {
+      message.error('操作失败')
+    }
+  }
+
   const handleSearch = () => {
     setPage(1)
     fetchNotes()
@@ -64,7 +98,8 @@ export default function Notes() {
         </Button>
       </div>
 
-      <div className="mb-4 flex gap-2">
+      {/* 筛选区 */}
+      <div className="mb-4 flex flex-wrap gap-2 items-center">
         <Input
           placeholder="搜索知识点..."
           value={keyword}
@@ -73,7 +108,30 @@ export default function Notes() {
           prefix={<SearchOutlined />}
           className="max-w-sm"
         />
+        <Select
+          placeholder="全部分类"
+          value={categoryId}
+          onChange={(v) => { setCategoryId(v); setPage(1) }}
+          allowClear
+          className="min-w-[140px]"
+          options={categories.map(c => ({ label: c.name, value: c.id }))}
+        />
+        <div className="flex items-center gap-1">
+          <Switch
+            size="small"
+            checked={onlyFavorites}
+            onChange={(v) => { setOnlyFavorites(v); setPage(1) }}
+          />
+          <span className="text-sm text-gray-500">只看收藏</span>
+        </div>
         <Button onClick={handleSearch}>搜索</Button>
+        <Button
+          type="text"
+          icon={<SettingOutlined />}
+          onClick={() => setCategoryManagerOpen(true)}
+        >
+          分类管理
+        </Button>
       </div>
 
       {notes.length === 0 && !loading ? (
@@ -88,18 +146,32 @@ export default function Notes() {
               className="cursor-pointer"
             >
               <div className="flex justify-between items-start">
-                <h3 className="text-lg font-semibold m-0 line-clamp-1">{note.title}</h3>
-                <Button
-                  type="text"
-                  size="small"
-                  danger
-                  icon={<DeleteOutlined />}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleDelete(note.id)
-                  }}
-                />
+                <h3 className="text-lg font-semibold m-0 line-clamp-1 flex-1">{note.title}</h3>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={note.is_favorite ? <StarFilled className="text-yellow-500" /> : <StarOutlined />}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleToggleFavorite(note)
+                    }}
+                  />
+                  <Button
+                    type="text"
+                    size="small"
+                    danger
+                    icon={<DeleteOutlined />}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDelete(note.id)
+                    }}
+                  />
+                </div>
               </div>
+              {note.category && (
+                <Tag color="purple" className="mt-1">{note.category.name}</Tag>
+              )}
               {note.summary && (
                 <p className="text-gray-500 mt-2 mb-0 line-clamp-2">{note.summary}</p>
               )}
@@ -128,6 +200,12 @@ export default function Notes() {
           </Space>
         </div>
       )}
+
+      <CategoryManager
+        open={categoryManagerOpen}
+        onClose={() => setCategoryManagerOpen(false)}
+        onUpdated={fetchCategories}
+      />
     </div>
   )
 }

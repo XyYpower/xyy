@@ -87,7 +87,7 @@ knowbase/
 │       ├── database.py    # 数据库连接
 │       ├── api/           # API 路由层
 │       │   ├── router.py  # 路由聚合
-│       │   ├── auth.py    # 注册/登录/JWT
+│       │   ├── auth.py    # 注册/登录/JWT/账号设置
 │       │   ├── notes.py   # 笔记 CRUD
 │       │   ├── imports.py # AI 导入 + 草稿确认
 │       │   ├── paths.py   # 学习路径
@@ -96,7 +96,7 @@ knowbase/
 │       │   ├── interview.py # AI 模拟面试
 │       │   ├── export.py  # 数据导出
 │       │   ├── tags.py    # 标签列表
-│       │   └── categories.py  # 分类列表
+│       │   └── categories.py  # 分类 CRUD（用户隔离）
 │       ├── models/        # SQLAlchemy ORM 模型
 │       │   ├── user.py    # User
 │       │   ├── note.py    # Note / Category / Tag
@@ -145,7 +145,7 @@ knowbase/
         ├── App.tsx        # 路由定义
         ├── index.css      # Tailwind 基础样式
         ├── api/
-        │   ├── auth.ts    # 认证 API
+        │   ├── auth.ts    # 认证 + 账号设置 API
         │   ├── client.ts  # Axios 实例
         │   ├── notes.ts   # 笔记 API 客户端
         │   ├── review.ts  # 复习 API 客户端
@@ -156,13 +156,18 @@ knowbase/
         │   ├── interview.ts # 面试 API 客户端
         │   ├── export.ts  # 导出下载
         │   └── dashboard.ts # 仪表盘聚合请求
+        │   ├── categories.ts # 分类 CRUD API 客户端
+        │   └── tags.ts    # 标签列表 API 客户端
         ├── components/
-        │   └── Layout.tsx # 侧边栏布局
+        │   ├── Layout.tsx # 侧边栏布局
+        │   ├── AuthRoute.tsx # 认证路由守卫
+        │   ├── CategoryManager.tsx # 分类管理弹窗
+        │   └── MarkdownEditor.tsx # Markdown 分屏编辑器
         └── pages/
             ├── Home.tsx       # 概览页（占位）
             ├── Dashboard.tsx  # 学习仪表盘基础版
-            ├── Notes.tsx      # 笔记列表（已实现）
-            ├── NoteDetail.tsx # 笔记编辑（已实现）
+            ├── Notes.tsx      # 笔记列表（含分类/收藏筛选）
+            ├── NoteDetail.tsx # 知识点编辑（Markdown 编辑器+标签+分类+收藏）
             ├── Review.tsx     # 间隔复习
             ├── Import.tsx     # AI 导入
             ├── Paths.tsx      # 学习路径
@@ -224,6 +229,11 @@ knowbase/
 | GET | `/export/json` | 导出完整 JSON | ✅ |
 | GET | `/export/markdown` | 导出知识点 Markdown | ✅ |
 | GET | `/export/anki` | 导出 Anki CSV | ✅ |
+| POST | `/categories` | 创建分类（需认证，按用户隔离） | ✅ |
+| PUT | `/categories/{id}` | 更新分类（需认证，按用户隔离） | ✅ |
+| DELETE | `/categories/{id}` | 删除分类（需认证，关联知识点 category_id 置空） | ✅ |
+| PUT | `/auth/profile` | 更新邮箱/复习提醒设置 | ✅ |
+| PUT | `/auth/password` | 修改密码（需旧密码验证） | ✅ |
 
 **查询参数**（GET /notes）：
 - `keyword` — 标题/内容模糊搜索（str, 可选）
@@ -499,12 +509,32 @@ npm run dev   # http://localhost:5173
 - [x] 后端测试：`D:\Python\venvs\knowbase\Scripts\python.exe -m pytest -q` → 48 passed
 - [x] 前端构建：`npm run build` → 通过（仍有 Vite chunk size 警告）
 
-### Phase 3 — 增强
-- [ ] Markdown / 富文本编辑器
-- [ ] 分类管理 UI（增删改）
-- [ ] 标签编辑 UI（添加/移除）
-- [ ] 收藏功能 UI
-- [ ] 账号设置增强（提醒时间、密码修改、资料维护）
+**V3.0 验证结果**
+- [x] Alembic 当前版本：`f1a2b3c4d5e6 (head)`
+- [x] 后端测试：`D:\Python\venvs\knowbase\Scripts\python.exe -m pytest -q` → 28 passed（Docker 不可用时 23 skipped）
+- [x] 前端构建：`npm run build` → 通过，主 chunk 从 ~1.5MB 降至 ~773KB（路由懒加载拆分）
+
+### Phase 3 — 体验打磨 + 内容管理
+
+> 详细任务书见 [V3.0-task.md](V3.0-task.md)
+
+**V3.0 后端 ✅ 已完成**
+- [x] categories 表新增 user_id（用户数据隔离）
+- [x] Categories CRUD API（POST/PUT/DELETE，按 user_id 隔离）
+- [x] 删除分类时自动将关联知识点的 category_id 置空
+- [x] 账号设置 API（PUT /auth/profile, PUT /auth/password）
+- [x] notes 列表支持 is_favorite 筛选
+- [x] Alembic 迁移：`f1a2b3c4d5e6 (head)` — categories 加 user_id
+- [x] 后端测试：3 个新测试覆盖分类 CRUD 隔离、账号设置、收藏筛选
+
+**V3.0 前端（进行中）**
+- [x] 路由懒加载（React.lazy + Suspense）
+- [x] Settings 页面增强（邮箱/密码/复习提醒）
+- [x] 分类管理 UI（弹窗 CRUD + 列表筛选）
+- [x] 标签编辑 UI（NoteDetail 添加/移除标签）
+- [x] 收藏功能 UI（星星按钮 + 筛选开关）
+- [x] Markdown 编辑器（分屏编辑预览）
+- [x] NoteDetail 页面整合升级
 
 ---
 
@@ -530,19 +560,19 @@ npm run dev   # http://localhost:5173
 
 ## 9. 已知问题 & 注意事项
 
-1. **编辑器简陋** — NoteDetail 使用原生 `<textarea>`，非 Markdown 编辑器
-2. **react-markdown 未使用** — 已声明依赖但未引入
-3. **App.css 残留** — 仍是 Vite 模板默认样式
-4. **分类/标签管理不完整** — 后端只读接口，前端无管理 UI
-5. **测试覆盖仍少** — 当前覆盖 Auth / SM-2 / 卡片生成核心单元、API 学习闭环、tags 认证隔离、后台生成；前端交互测试尚未覆盖
+1. ~~**编辑器简陋** — NoteDetail 使用原生 `<textarea>`，非 Markdown 编辑器~~ ✅ V3.0 已修复
+2. ~~**react-markdown 未使用** — 已声明依赖但未引入~~ ✅ V3.0 已引入 MarkdownEditor
+3. ~~**App.css 残留** — 仍是 Vite 模板默认样式~~ ✅ 已清理
+4. ~~**分类/标签管理不完整** — 后端只读接口，前端无管理 UI~~ ✅ V3.0 已补齐
+5. **测试覆盖仍少** — 当前覆盖 Auth / SM-2 / 卡片生成核心单元、API 学习闭环、tags 认证隔离、后台生成、V3.0 分类/账号/收藏；前端交互测试尚未覆盖
 6. **V2.1 卡片生成有本地兜底** — 未配置 LLM API key 时不会真实调用 AI
-7. **前端构建体积偏大** — 当前 Vite build 有 chunk size 警告，后续可做动态导入
+7. ~~**前端构建体积偏大** — 当前 Vite build 有 chunk size 警告，后续可做动态导入~~ ✅ V3.0 路由懒加载已拆分
 8. **GitHub 网络不稳定** — 国内访问 GitHub 需多次重试 git push
 9. **alembic.ini 不能有中文注释** — Windows GBK 编码问题，会报 UnicodeDecodeError
 10. **API 集成测试依赖 Docker 数据库** — `backend/tests/test_api_learning_loop.py` 会在数据库不可用时自动 skip；需要 Docker Desktop + `docker compose up -d` 才会真实执行
 11. **V2.2 导入/路径有本地兜底** — 未配置 LLM API key 时不会真实调用 AI，会用规则拆段落和预设学习路径模板
 12. **URL 导入是 MVP 抓取** — 当前用 `httpx` + 简单 HTML 去标签，并做基础 SSRF 防护（仅 http/https、拒绝 userinfo、拒绝非公网地址、跳转后重新校验）；复杂反爬、登录态页面、动态渲染页面后续再增强
-13. **前端构建体积继续偏大** — V2.3 引入 Chat/Interview/Markdown 后主 chunk 约 1.5MB，后续可用路由级动态导入拆分
+13. ~~**前端构建体积继续偏大** — V2.3 引入 Chat/Interview/Markdown 后主 chunk 约 1.5MB，后续可用路由级动态导入拆分~~ ✅ V3.0 路由懒加载已拆分，主 chunk 降至 ~773KB
 14. **SSE 使用 EventSourceResponse** — V2.3 Review 后已切换到 `sse-starlette`，并在流式输出时检查客户端断连，减少页面关闭后继续消耗 LLM API 的风险
 15. **Embedding 兜底不是语义向量** — 未配置 Embedding API key 时使用确定性 hash 向量，只保证流程可跑通，真实检索效果需要配置 OpenAI/GLM 等 embedding 服务
 
@@ -564,3 +594,5 @@ npm run dev   # http://localhost:5173
 | 2026-06-02 | V2.2 Review 加固：URL 导入增加基础 SSRF 防护；确认导入改为先落库、后台生成复习卡片并记录失败；学习路径 modules 增加 schema 校验；前端批量勾选支持部分失败状态同步；后端测试增至 27 个 |
 | 2026-06-02 | V2.3 完成：新增 note_chunks + pgvector 检索、RAG Chat SSE、AI 模拟面试、薄弱点分析、JSON/Markdown/Anki 导出、Chat/Interview/Settings/Dashboard 前端；后端 43 个测试通过，前端构建通过 |
 | 2026-06-02 | V2.3 Review 加固：修复 SSE 中途失败混合 fallback、断连检测、对话更新时间、列表消息预加载、嵌入原子替换/并发生成、pgvector ORM 类型、前端流式错误状态、面试参考答案和归一化分数；后端测试增至 48 个 |
+| 2026-06-02 | V3.0 后端完成：categories 加 user_id 实现用户数据隔离 + CRUD API；账号设置 API（profile/password）；notes 列表支持 is_favorite 筛选；迁移 f1a2b3c4d5e6；新增 3 个集成测试 |
+| 2026-06-02 | V3.0 前端完成：路由懒加载（主 chunk 从 1.5MB 降至 773KB）；Settings 增强（邮箱/密码/提醒）；分类管理 UI（CRUD + 筛选）；标签编辑 + 收藏功能；Markdown 编辑器（分屏预览）；NoteDetail 整合升级；前端构建通过 |

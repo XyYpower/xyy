@@ -1,9 +1,19 @@
-from fastapi import APIRouter, Depends
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.user import User
-from app.schemas.auth import LoginRequest, RefreshRequest, RegisterRequest, TokenResponse, UserOut
+from app.schemas.auth import (
+    ChangePasswordRequest,
+    LoginRequest,
+    RefreshRequest,
+    RegisterRequest,
+    TokenResponse,
+    UpdateProfileRequest,
+    UserOut,
+)
 from app.services import auth_service
 from app.utils.deps import get_current_user
 from app.utils.response import success
@@ -38,3 +48,40 @@ async def refresh(data: RefreshRequest, db: AsyncSession = Depends(get_db)):
 async def me(current_user: User = Depends(get_current_user)):
     return success(UserOut.model_validate(current_user))
 
+
+@router.put("/profile")
+async def update_profile(
+    data: UpdateProfileRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if data.email is not None:
+        current_user.email = data.email
+    if data.reminder_enabled is not None:
+        current_user.reminder_enabled = data.reminder_enabled
+    if data.reminder_time is not None:
+        try:
+            current_user.reminder_time = datetime.strptime(data.reminder_time, "%H:%M").time()
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="reminder_time must be HH:MM",
+            ) from exc
+
+    await db.flush()
+    await db.refresh(current_user)
+    return success(UserOut.model_validate(current_user))
+
+
+@router.put("/password")
+async def change_password(
+    data: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if not auth_service.verify_password(data.old_password, current_user.password_hash):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="旧密码错误")
+
+    current_user.password_hash = auth_service.hash_password(data.new_password)
+    await db.flush()
+    return success(message="密码已修改")

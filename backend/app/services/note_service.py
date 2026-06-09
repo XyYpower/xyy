@@ -1,17 +1,19 @@
 import uuid
 import hashlib
-from sqlalchemy import delete, select, func, or_, text
+from fastapi import HTTPException, status
+from sqlalchemy import delete, select, func, or_, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.chat import NoteChunk
 from app.models.note import Note, Category, Tag, note_tags
-from app.schemas.note import NoteCreate, NoteUpdate
+from app.schemas.note import CategoryCreate, CategoryUpdate, NoteCreate, NoteUpdate
 from app.services import review_service
 from app.rag import embedding
 
 
 async def create_note(db: AsyncSession, data: NoteCreate, user_id: uuid.UUID) -> Note:
+    await _ensure_category_owned(db, user_id, data.category_id)
     tags = await _get_or_create_tags(db, data.tag_names)
     note = Note(
         user_id=user_id,
@@ -42,6 +44,7 @@ async def get_notes(
     tag_id: uuid.UUID | None = None,
     mastery_level: int | None = None,
     source_type: str | None = None,
+    is_favorite: bool | None = None,
 ) -> tuple[list[Note], int]:
     query = select(Note).options(selectinload(Note.category), selectinload(Note.tags)).where(Note.user_id == user_id)
 
@@ -58,6 +61,8 @@ async def get_notes(
         query = query.where(Note.mastery_level == mastery_level)
     if source_type:
         query = query.where(Note.source_type == source_type)
+    if is_favorite is not None:
+        query = query.where(Note.is_favorite == is_favorite)
 
     count_query = select(func.count()).select_from(query.subquery())
     total = (await db.execute(count_query)).scalar() or 0
@@ -78,6 +83,9 @@ async def get_note(db: AsyncSession, note_id: uuid.UUID, user_id: uuid.UUID) -> 
 
 async def update_note(db: AsyncSession, note: Note, data: NoteUpdate) -> Note:
     update_data = data.model_dump(exclude_unset=True, exclude={"tag_names"})
+    if "category_id" in update_data:
+        await _ensure_category_owned(db, note.user_id, update_data["category_id"])
+
     for field, value in update_data.items():
         setattr(note, field, value)
 
@@ -93,6 +101,60 @@ async def update_note(db: AsyncSession, note: Note, data: NoteUpdate) -> Note:
 
 async def delete_note(db: AsyncSession, note: Note) -> None:
     await db.delete(note)
+    await db.flush()
+
+
+async def get_categories_for_user(db: AsyncSession, user_id: uuid.UUID) -> list[Category]:
+    result = await db.execute(
+        select(Category)
+        .where(Category.user_id == user_id)
+        .order_by(Category.sort_order.asc(), Category.name.asc())
+    )
+    return result.scalars().all()
+
+
+async def get_category_for_user(db: AsyncSession, user_id: uuid.UUID, category_id: uuid.UUID) -> Category | None:
+    result = await db.execute(select(Category).where(Category.id == category_id, Category.user_id == user_id))
+    return result.scalar_one_or_none()
+
+
+async def create_category(db: AsyncSession, user_id: uuid.UUID, data: CategoryCreate) -> Category:
+    category = Category(user_id=user_id, **data.model_dump())
+    db.add(category)
+    await db.flush()
+    await db.refresh(category)
+    return category
+
+
+async def update_category(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    category_id: uuid.UUID,
+    data: CategoryUpdate,
+) -> Category:
+    category = await get_category_for_user(db, user_id, category_id)
+    if not category:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="分类不存在")
+
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(category, field, value)
+
+    await db.flush()
+    await db.refresh(category)
+    return category
+
+
+async def delete_category(db: AsyncSession, user_id: uuid.UUID, category_id: uuid.UUID) -> None:
+    category = await get_category_for_user(db, user_id, category_id)
+    if not category:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="分类不存在")
+
+    await db.execute(
+        update(Note)
+        .where(Note.user_id == user_id, Note.category_id == category_id)
+        .values(category_id=None)
+    )
+    await db.delete(category)
     await db.flush()
 
 
@@ -156,6 +218,18 @@ async def get_tags_for_user(db: AsyncSession, user_id: uuid.UUID) -> list[Tag]:
         .order_by(Tag.name)
     )
     return result.scalars().all()
+
+
+async def _ensure_category_owned(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    category_id: uuid.UUID | None,
+) -> None:
+    if category_id is None:
+        return
+    category = await get_category_for_user(db, user_id, category_id)
+    if not category:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="分类不存在")
 
 
 async def _get_or_create_tags(db: AsyncSession, tag_names: list[str]) -> list[Tag]:
