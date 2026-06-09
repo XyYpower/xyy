@@ -226,6 +226,117 @@ async def read_learning_paths() -> str:
         return "\n".join(lines)
 
 
+# ── Prompts ──────────────────────
+
+
+@mcp.prompt()
+async def prepare_agent_engineer_interview(focus_area: str = "") -> str:
+    """准备 AI Agent 应用开发岗位面试。根据知识库内容生成面试准备材料。
+
+    Args:
+        focus_area: 重点准备方向（如 "RAG"、"工具调用"、"多Agent编排"，可选）
+    """
+    async with async_session() as db:
+        user = await _get_default_user(db)
+        if not user:
+            return "没有可用用户，请先注册并添加知识点。"
+
+        # 收集用户知识库
+        notes, total = await note_service.get_notes(db, user.id, 1, 20)
+        weak_points = await interview_service.get_weak_points(db, user.id)
+
+        note_titles = [n.title for n in notes]
+        weak_titles = [w["title"] for w in weak_points[:5]]
+
+        prompt_parts = [
+            "你是一位资深 AI Agent 应用开发技术面试官。请根据候选人的知识库准备面试。",
+            f"\n候选人知识库（{total} 个知识点）：",
+            *[f"- {t}" for t in note_titles[:15]],
+        ]
+
+        if weak_titles:
+            prompt_parts.append("\n候选人薄弱领域：")
+            prompt_parts.extend(f"- {t}" for t in weak_titles)
+
+        if focus_area:
+            prompt_parts.append(f"\n重点准备方向：{focus_area}")
+
+        prompt_parts.extend([
+            "\n请：",
+            "1. 评估候选人的知识覆盖度",
+            "2. 列出 5 道针对性面试题（概念+实践+场景）",
+            "3. 每道题给出参考答案和评分标准",
+            "4. 给出面试准备建议",
+        ])
+
+        return "\n".join(prompt_parts)
+
+
+@mcp.prompt()
+async def explain_knowledge_gap(topic: str) -> str:
+    """解释某个知识点的学习差距和改进方向。
+
+    Args:
+        topic: 要分析的知识点主题
+    """
+    async with async_session() as db:
+        user = await _get_default_user(db)
+        if not user:
+            return "没有可用用户。"
+
+        # 搜索相关笔记
+        notes, _ = await note_service.get_notes(db, user.id, 1, 5, topic)
+
+        context = f"用户正在学习：{topic}\n"
+        if notes:
+            context += "已有相关知识点：\n"
+            for n in notes:
+                mastery = {0: "未学", 1: "学习中", 2: "已掌握"}[n.mastery_level]
+                context += f"- {n.title}（{mastery}）\n"
+        else:
+            context += "知识库中没有相关知识点。\n"
+
+        return (
+            f"{context}\n"
+            f"请分析用户在「{topic}」方面的知识差距：\n"
+            "1. 该主题的核心概念和关键知识点\n"
+            "2. 用户当前掌握情况评估\n"
+            "3. 需要补充的学习内容\n"
+            "4. 推荐的学习路径和资源\n"
+            "5. 实践项目建议"
+        )
+
+
+@mcp.prompt()
+async def generate_project_case_study(project_name: str = "KnowBase") -> str:
+    """生成项目案例研究，适合放在简历或面试中展示。
+
+    Args:
+        project_name: 项目名称（默认 KnowBase）
+    """
+    async with async_session() as db:
+        user = await _get_default_user(db)
+        stats = {}
+        if user:
+            from sqlalchemy import func, select
+            notes_count = (await db.execute(
+                select(func.count(Note.id)).where(Note.user_id == user.id)
+            )).scalar() or 0
+            stats["知识点数"] = notes_count
+
+    return (
+        f"请为项目「{project_name}」生成一份技术案例研究，包含：\n\n"
+        "1. **项目概述**：一句话定位 + 核心价值\n"
+        "2. **技术架构**：系统架构图描述、技术栈选型理由\n"
+        "3. **核心挑战**：遇到的 3 个技术难题及解决方案\n"
+        "4. **技术亮点**：可量化的性能指标、创新点\n"
+        "5. **工程实践**：测试策略、CI/CD、可观测性\n"
+        "6. **总结与反思**：学到了什么、可以改进什么\n\n"
+        f"项目数据：{stats}\n"
+        "输出格式：Markdown，适合放进 GitHub README 或技术博客。"
+    )
+
+
 # ── 辅助函数 ──────────────────────
 
 

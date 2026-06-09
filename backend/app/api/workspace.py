@@ -200,3 +200,29 @@ async def complete_task(
     task.completed_at = datetime.now(UTC).replace(tzinfo=None)
     await db.flush()
     return success({"id": str(task.id), "status": "completed"})
+
+
+# ── LangGraph 工作流端点 ──────────────────────
+
+
+@router.post("/workflow/plan")
+async def run_langgraph_plan(
+    goal: str,
+    current_user: User = Depends(get_current_user),
+):
+    """运行 LangGraph 学习规划工作流（支持暂停/恢复）。"""
+    from app.agents.langgraph_adapter import run_learning_workflow
+    result = await run_learning_workflow(current_user.id, goal)
+    return success(result)
+
+
+@router.post("/workflow/resume")
+async def resume_langgraph_workflow(
+    thread_id: str,
+    approval: str = "approved",
+    current_user: User = Depends(get_current_user),
+):
+    """恢复暂停的 LangGraph 工作流。"""
+    from app.agents.langgraph_adapter import resume_learning_workflow
+    result = await resume_learning_workflow(thread_id, approval)
+    return success(result)
