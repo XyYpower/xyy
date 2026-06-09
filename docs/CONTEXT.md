@@ -129,7 +129,9 @@ knowbase/
 │       │   ├── registry.py  # Tool Registry
 │       │   ├── runtime.py   # AgentRun 生命周期管理
 │       │   ├── traces.py    # Trace 记录器 + LLM 日志
-│       │   └── tools.py     # 现有服务工具注册
+│       │   ├── tools.py     # 现有服务工具注册
+│       │   ├── diagnosis.py # DiagnosisAgent 诊断薄弱点
+│       │   └── planner.py   # PlannerAgent 学习规划
 │       ├── rag/           # LLM / RAG 相关能力
 │       │   ├── llm.py
 │       │   ├── card_generator.py
@@ -182,6 +184,7 @@ knowbase/
             ├── Interview.tsx  # AI 模拟面试
             ├── Settings.tsx   # 设置 + 数据导出
             ├── TraceLab.tsx   # Agent 运行追踪 + AI 调用监控
+            ├── AgentWorkspace.tsx # Agent 工作台（诊断+规划+每日任务）
             ├── Login.tsx      # 登录
             ├── Register.tsx   # 注册
             └── Chat.tsx       # AI 对话（RAG + SSE）
@@ -247,6 +250,12 @@ knowbase/
 | GET | `/traces/runs/{id}` | Agent 运行详情（含 steps + tool_calls） | ✅ |
 | GET | `/traces/ai-logs` | AI 调用日志列表（分页） | ✅ |
 | GET | `/traces/stats` | Agent + AI 使用统计 | ✅ |
+| POST | `/workspace/diagnose` | 运行诊断 Agent | ✅ |
+| POST | `/workspace/plan` | 运行规划 Agent | ✅ |
+| POST | `/workspace/diagnose-and-plan` | 一站式诊断 + 规划 | ✅ |
+| GET | `/workspace/tasks/today` | 今日学习任务 | ✅ |
+| GET | `/workspace/tasks` | 任务列表（可按状态筛选） | ✅ |
+| PUT | `/workspace/tasks/{id}/complete` | 标记任务完成 | ✅ |
 
 **查询参数**（GET /notes）：
 - `keyword` — 标题/内容模糊搜索（str, 可选）
@@ -532,6 +541,11 @@ npm run dev   # http://localhost:5173
 - [x] 后端测试：`D:\Python\venvs\knowbase\Scripts\python.exe -m pytest -q` → 54 passed（含 3 个 V3.1 Agent Runtime 集成测试）
 - [x] 前端构建：`npm run build` → 通过，TraceLab 页面独立 chunk（217KB）
 
+**V3.2 验证结果**
+- [x] Alembic 当前版本：`b2c3d4e5f6a7 (head)`
+- [x] 后端测试：56 passed（含 2 个 V3.2 workspace 集成测试）
+- [x] 前端构建：通过
+
 ### Phase 3 — 体验打磨 + 内容管理
 
 > 详细任务书见 [V3.0-task.md](V3.0-task.md)
@@ -569,10 +583,13 @@ npm run dev   # http://localhost:5173
 - [x] 后端测试：3 个新测试覆盖 AgentRun 生命周期、ToolRegistry、AI 日志
 
 **V3.2 — Agent Workspace + 学习规划 Agent**
-- [ ] 新增 Agent Workspace 页面
-- [ ] DiagnosisAgent 根据知识点、复习和面试历史诊断薄弱点
-- [ ] PlannerAgent 将学习目标拆成 path / module / topic / task
-- [ ] 引入人工确认队列，写入知识库和任务前必须确认
+- [x] 拆分 learning_paths.modules 为结构化表（learning_path_modules / learning_path_topics / learning_tasks）
+- [x] Alembic 迁移 b2c3d4e5f6a7
+- [x] DiagnosisAgent：根据知识点、复习、面试历史诊断薄弱点（LLM + 本地兜底）
+- [x] PlannerAgent：生成结构化路径 + 模块 + Topic + 每日任务（LLM + 本地兜底）
+- [x] Agent Workspace API：diagnose / plan / diagnose-and-plan / tasks / complete
+- [x] 前端 Agent Workspace 页面：目标输入 → 诊断结果 → 学习计划 → 今日任务
+- [x] 后端测试：2 个新测试覆盖诊断+规划流程和任务完成
 
 **V3.3 — RAG 质量与评估系统**
 - [ ] Hybrid retrieval + citation spans
@@ -645,4 +662,5 @@ npm run dev   # http://localhost:5173
 | 2026-06-02 | V3.0 前端完成：路由懒加载（主 chunk 从 1.5MB 降至 773KB）；Settings 增强（邮箱/密码/提醒）；分类管理 UI（CRUD + 筛选）；标签编辑 + 收藏功能；Markdown 编辑器（分屏预览）；NoteDetail 整合升级；前端构建通过 |
 | 2026-06-02 | V3.0 质量修复：Settings TimePicker 用 dayjs 正确绑定已保存时间；MarkdownEditor 增加 Ctrl+B/I/K 快捷键 + Tab 缩进 + 分屏边框修复；NoteDetail 保存后刷新标签列表 |
 | 2026-06-03 | V3.1 Agent Runtime 完成：新增 agent_runs/agent_steps/tool_calls/ai_call_logs 四表 + Alembic 迁移 a1b2c3d4e5f6；Tool Registry 注册 8 个工具；logged_llm_call/stream 自动记录 AI 调用；Trace Lab API（4 端点）+ 前端页面（统计/列表/详情/步骤时间线/工具调用表）；Dashboard 集成 AI 使用统计；后端测试增至 54 个 |
+| 2026-06-03 | V3.2 Agent Workspace 完成：learning_paths 拆分为 modules/topics/tasks 结构化表（迁移 b2c3d4e5f6a7）；DiagnosisAgent + PlannerAgent（LLM + 本地兜底）；Workspace API（diagnose/plan/tasks）+ 前端页面（目标→诊断→计划→今日任务）；path_service 修复 selectinload 兼容；后端测试增至 56 个 |
 | 2026-06-09 | 新增 V3.1 Agentic Redesign：规划 Agent Runtime、Tool Registry、Trace Lab、Agent Workspace、RAG 评估、Portfolio Builder、LangGraph/MCP 后续路线 |

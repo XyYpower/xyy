@@ -70,7 +70,7 @@ async def export_json(db: AsyncSession, user_id: uuid.UUID) -> dict:
                 "id": str(path.id),
                 "name": path.name,
                 "description": path.description,
-                "modules": path.modules,
+                "modules": path.modules_json,
                 "created_at": path.created_at.isoformat() if path.created_at else None,
             }
             for path in paths

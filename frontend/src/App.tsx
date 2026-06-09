@@ -16,6 +16,7 @@ const Import = lazy(() => import('./pages/Import'))
 const Paths = lazy(() => import('./pages/Paths'))
 const Settings = lazy(() => import('./pages/Settings'))
 const TraceLab = lazy(() => import('./pages/TraceLab'))
+const AgentWorkspace = lazy(() => import('./pages/AgentWorkspace'))
 
 const PageLoading = () => (
   <div className="flex justify-center items-center p-16">
@@ -34,6 +35,7 @@ function App() {
             <Route index element={<Home />} />
             <Route path="notes" element={<Notes />} />
             <Route path="notes/:id" element={<NoteDetail />} />
+            <Route path="workspace" element={<AgentWorkspace />} />
             <Route path="chat" element={<Chat />} />
             <Route path="review" element={<Review />} />
             <Route path="interview" element={<Interview />} />

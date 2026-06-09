@@ -44,8 +44,8 @@ async def test_generate_learning_path_uses_fallback_without_api_key(monkeypatch)
             await session.commit()
 
             assert path.name
-            assert path.modules
-            assert all("topics" in module for module in path.modules)
+            assert path.modules_json
+            assert all("topics" in module for module in path.modules_json)
 
             paths = await path_service.get_paths(session, user.id)
             assert len(paths) == 1

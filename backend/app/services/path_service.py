@@ -5,6 +5,7 @@ import uuid
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.path import LearningPath
 from app.rag.llm import get_llm
@@ -44,24 +45,37 @@ async def generate_learning_path(db: AsyncSession, user_id: uuid.UUID, goal: str
         user_id=user_id,
         name=payload["name"],
         description=payload["description"],
-        modules=payload["modules"],
+        modules_json=payload["modules"],
     )
     db.add(path)
     await db.flush()
-    await db.refresh(path)
-    return path
+    # 重新加载以确保 structured_modules 可用
+    result = await db.execute(
+        select(LearningPath)
+        .options(selectinload(LearningPath.structured_modules))
+        .where(LearningPath.id == path.id)
+    )
+    return result.scalar_one()
 
 
 async def get_paths(db: AsyncSession, user_id: uuid.UUID) -> list[LearningPath]:
     result = await db.execute(
-        select(LearningPath).where(LearningPath.user_id == user_id).order_by(LearningPath.created_at.desc())
+        select(LearningPath)
+        .options(selectinload(LearningPath.structured_modules))
+        .where(LearningPath.user_id == user_id)
+        .order_by(LearningPath.created_at.desc())
     )
-    return result.scalars().all()
+    return list(result.scalars().all())
 
 
 async def get_path(db: AsyncSession, user_id: uuid.UUID, path_id: uuid.UUID) -> LearningPath:
-    path = await db.get(LearningPath, path_id)
-    if not path or path.user_id != user_id:
+    result = await db.execute(
+        select(LearningPath)
+        .options(selectinload(LearningPath.structured_modules))
+        .where(LearningPath.id == path_id, LearningPath.user_id == user_id)
+    )
+    path = result.scalar_one_or_none()
+    if not path:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learning path not found")
     return path
 

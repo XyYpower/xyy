@@ -11,6 +11,7 @@ import {
   SettingOutlined,
   TrophyOutlined,
   DashboardOutlined,
+  ThunderboltOutlined,
 } from '@ant-design/icons'
 import { Button } from 'antd'
 import { useAuthStore } from '../store/authStore'
@@ -19,6 +20,7 @@ const { Sider, Content } = AntLayout
 
 const menuItems = [
   { key: '/', icon: <HomeOutlined />, label: '概览' },
+  { key: '/workspace', icon: <ThunderboltOutlined />, label: 'Agent' },
   { key: '/notes', icon: <BookOutlined />, label: '知识点' },
   { key: '/chat', icon: <MessageOutlined />, label: 'AI 对话' },
   { key: '/review', icon: <ScheduleOutlined />, label: '间隔复习' },
