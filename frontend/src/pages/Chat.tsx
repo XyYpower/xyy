@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Button, Empty, Input, List, Space, Tag, Typography, message } from 'antd'
+import { Button, Empty, Input, List, Modal, Space, Tag, Typography, message } from 'antd'
 import { DeleteOutlined, MessageOutlined, PlusOutlined, SendOutlined, LikeOutlined, DislikeOutlined } from '@ant-design/icons'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -75,17 +75,25 @@ export default function Chat() {
     }
   }
 
-  const deleteConversation = async (id: string) => {
-    try {
-      await chatApi.delete(id)
-      setConversations((current) => current.filter((item) => item.id !== id))
-      if (activeId === id) {
-        const next = conversations.find((item) => item.id !== id)
-        setActiveId(next?.id ?? null)
-      }
-    } catch {
-      message.error('删除对话失败')
-    }
+  const deleteConversation = (id: string) => {
+    Modal.confirm({
+      title: '确认删除对话？',
+      content: '删除后不可恢复',
+      okText: '删除',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await chatApi.delete(id)
+          setConversations((current) => current.filter((item) => item.id !== id))
+          if (activeId === id) {
+            const next = conversations.find((item) => item.id !== id)
+            setActiveId(next?.id ?? null)
+          }
+        } catch {
+          message.error('删除对话失败')
+        }
+      },
+    })
   }
 
   const send = async () => {

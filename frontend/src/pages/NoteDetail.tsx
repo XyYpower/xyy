@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Button, Input, Select, Tooltip, message } from 'antd'
+import { Button, Input, Select, Tooltip, Spin, message } from 'antd'
 import { ArrowLeftOutlined, SaveOutlined, StarOutlined, StarFilled } from '@ant-design/icons'
 import { noteApi, type Note } from '../api/notes'
 import { categoryApi, type Category } from '../api/categories'
@@ -24,17 +24,49 @@ export default function NoteDetail() {
   const [isFavorite, setIsFavorite] = useState(false)
   const [tagNames, setTagNames] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [dirty, setDirty] = useState(false)
 
-  // 下拉数据
   const [categories, setCategories] = useState<Category[]>([])
   const [allTags, setAllTags] = useState<TagType[]>([])
+
+  // 追踪初始值用于判断是否有未保存更改
+  const initialValues = useRef<string>('')
+
+  const markDirty = useCallback(() => {
+    if (!dirty) setDirty(true)
+  }, [dirty])
 
   useEffect(() => {
     if (id) fetchNote()
     fetchDropdownData()
   }, [id])
 
+  // Ctrl+S 快捷键保存
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault()
+        handleSave()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  })
+
+  // 离开页面前提醒
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (dirty) {
+        e.preventDefault()
+      }
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [dirty])
+
   const fetchNote = async () => {
+    setLoading(true)
     try {
       const res = await noteApi.get(id!)
       const n = res.data
@@ -45,8 +77,15 @@ export default function NoteDetail() {
       setMasteryLevel(n.mastery_level)
       setIsFavorite(n.is_favorite)
       setTagNames(n.tags.map(t => t.name))
+      // 记录初始值
+      initialValues.current = JSON.stringify({
+        title: n.title, content: n.content, category: n.category?.id,
+        mastery: n.mastery_level, fav: n.is_favorite, tags: n.tags.map(t => t.name).sort(),
+      })
     } catch {
       message.error('加载失败')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -61,7 +100,7 @@ export default function NoteDetail() {
   }
 
   const handleSave = async () => {
-    if (!id) return
+    if (!id || saving) return
     setSaving(true)
     try {
       const res = await noteApi.update(id, {
@@ -73,7 +112,12 @@ export default function NoteDetail() {
         tag_names: tagNames,
       })
       setNote(res.data)
-      // 保存后刷新标签列表（可能有新标签被创建）
+      setDirty(false)
+      // 更新初始值
+      initialValues.current = JSON.stringify({
+        title, content, category: categoryId,
+        mastery: masteryLevel, fav: isFavorite, tags: [...tagNames].sort(),
+      })
       fetchDropdownData()
       message.success('已保存')
     } catch {
@@ -83,7 +127,26 @@ export default function NoteDetail() {
     }
   }
 
-  if (!note) return <div className="p-8 text-center text-gray-400">加载中...</div>
+  // 监听内容变化标记 dirty
+  useEffect(() => {
+    if (!loading && initialValues.current) {
+      const current = JSON.stringify({
+        title, content, category: categoryId,
+        mastery: masteryLevel, fav: isFavorite, tags: [...tagNames].sort(),
+      })
+      setDirty(current !== initialValues.current)
+    }
+  }, [title, content, categoryId, masteryLevel, isFavorite, tagNames, loading])
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center p-16">
+        <Spin size="large" />
+      </div>
+    )
+  }
+
+  if (!note) return <div className="p-8 text-center text-gray-400">知识点不存在</div>
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -94,21 +157,24 @@ export default function NoteDetail() {
         </Button>
         <Input
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(e) => { setTitle(e.target.value); markDirty() }}
           className="text-xl font-bold flex-1"
           variant="borderless"
           placeholder="知识点标题"
         />
+        {dirty && <span className="text-xs text-orange-500">未保存</span>}
         <Tooltip title={isFavorite ? '取消收藏' : '收藏'}>
           <Button
             type="text"
             icon={isFavorite ? <StarFilled className="text-yellow-500 text-lg" /> : <StarOutlined className="text-lg" />}
-            onClick={() => setIsFavorite(!isFavorite)}
+            onClick={() => { setIsFavorite(!isFavorite); markDirty() }}
           />
         </Tooltip>
-        <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={handleSave}>
-          保存
-        </Button>
+        <Tooltip title="Ctrl+S">
+          <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={handleSave}>
+            保存
+          </Button>
+        </Tooltip>
       </div>
 
       {/* 元信息区 */}
@@ -117,7 +183,7 @@ export default function NoteDetail() {
           <span className="text-sm text-gray-500">分类：</span>
           <Select
             value={categoryId}
-            onChange={setCategoryId}
+            onChange={(v) => { setCategoryId(v); markDirty() }}
             placeholder="选择分类"
             allowClear
             className="min-w-[140px]"
@@ -129,7 +195,7 @@ export default function NoteDetail() {
           <span className="text-sm text-gray-500">掌握度：</span>
           <Select
             value={masteryLevel}
-            onChange={setMasteryLevel}
+            onChange={(v) => { setMasteryLevel(v); markDirty() }}
             className="min-w-[100px]"
             size="small"
             options={masteryOptions}
@@ -142,7 +208,7 @@ export default function NoteDetail() {
         <Select
           mode="tags"
           value={tagNames}
-          onChange={setTagNames}
+          onChange={(v) => { setTagNames(v); markDirty() }}
           placeholder="添加标签..."
           className="w-full"
           size="small"
@@ -154,7 +220,7 @@ export default function NoteDetail() {
       {/* Markdown 编辑器 */}
       <MarkdownEditor
         value={content}
-        onChange={setContent}
+        onChange={(v) => { setContent(v); markDirty() }}
         placeholder="开始写知识点内容... (支持 Markdown)"
       />
 

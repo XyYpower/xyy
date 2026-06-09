@@ -60,6 +60,19 @@ export default function Dashboard() {
         <Button type="primary" onClick={() => navigate('/review')}>开始复习</Button>
       </div>
 
+      {/* 新用户引导 */}
+      {totalNotes === 0 && (
+        <div className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg p-6 mb-6">
+          <Title level={3} className="!text-white !mb-2">欢迎使用 KnowBase</Title>
+          <p className="text-indigo-100 mb-4">开始构建你的编程知识库，AI 会帮你规划学习路径、生成复习卡片和模拟面试。</p>
+          <div className="flex gap-3">
+            <Button type="primary" ghost onClick={() => navigate('/notes')}>创建第一个知识点</Button>
+            <Button type="primary" ghost onClick={() => navigate('/import')}>导入知识内容</Button>
+            <Button type="primary" ghost onClick={() => navigate('/workspace')}>使用 Agent 规划</Button>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-white border border-gray-200 rounded-lg p-5">
           <div className="text-sm text-gray-500">今日待复习</div>
