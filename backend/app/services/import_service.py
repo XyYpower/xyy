@@ -203,3 +203,70 @@ async def _get_owned_draft(db: AsyncSession, user_id: uuid.UUID, draft_id: uuid.
     if not draft:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Extraction draft not found")
     return draft
+
+
+async def quick_import_markdown(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    markdown: str,
+    category_id: uuid.UUID | None = None,
+) -> list[Note]:
+    """快速导入 Markdown：按 ## 标题拆分，直接创建笔记 + 生成复习卡片。"""
+    items = _parse_markdown_sections(markdown)
+    if not items:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="未找到可导入的内容，请确保使用 ## 标题分隔知识点")
+
+    notes: list[Note] = []
+    for item in items:
+        note = Note(
+            user_id=user_id,
+            title=item["title"][:200],
+            content=item["content"],
+            source_type="imported",
+            category_id=category_id,
+        )
+        db.add(note)
+        await db.flush()
+        await db.refresh(note)
+        await note_service.embed_note(db, note)
+        notes.append(note)
+
+    return notes
+
+
+def _parse_markdown_sections(markdown: str) -> list[dict[str, str]]:
+    """按 Markdown 标题拆分内容。支持 ## 和 ### 级别。"""
+    lines = markdown.strip().split("\n")
+    sections: list[dict[str, str]] = []
+    current_title = ""
+    current_lines: list[str] = []
+
+    for line in lines:
+        # 匹配 ## 或 ### 开头的标题
+        if line.startswith("## ") or line.startswith("### "):
+            # 保存上一个 section
+            if current_title and current_lines:
+                content = "\n".join(current_lines).strip()
+                if len(content) > 10:
+                    sections.append({"title": current_title, "content": content})
+            current_title = line.lstrip("#").strip()
+            current_lines = []
+        elif line.startswith("# "):
+            # 一级标题作为分类标记，不作为知识点
+            continue
+        else:
+            current_lines.append(line)
+
+    # 最后一个 section
+    if current_title and current_lines:
+        content = "\n".join(current_lines).strip()
+        if len(content) > 10:
+            sections.append({"title": current_title, "content": content})
+
+    # 如果没有标题，但内容足够长，作为单个知识点
+    if not sections and markdown.strip():
+        text = markdown.strip()
+        if len(text) > 10:
+            sections.append({"title": text[:50].split("\n")[0], "content": text})
+
+    return sections[:50]  # 最多 50 个知识点

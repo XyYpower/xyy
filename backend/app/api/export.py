@@ -36,16 +36,3 @@ async def export_markdown(
         media_type="text/markdown; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="knowbase-notes.md"'},
     )
-
-
-@router.get("/anki")
-async def export_anki(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    content = await export_service.export_anki_csv(db, current_user.id)
-    return Response(
-        content=content,
-        media_type="text/csv; charset=utf-8",
-        headers={"Content-Disposition": 'attachment; filename="knowbase-anki.csv"'},
-    )

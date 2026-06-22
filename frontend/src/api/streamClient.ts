@@ -8,6 +8,9 @@ interface StreamChatOptions {
   onError: (error: Error) => void
 }
 
+/** 让出事件循环，给 React 渲染的机会 */
+const yieldToMain = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
+
 export async function streamChat({ convId, query, onChunk, onDone, onError }: StreamChatOptions): Promise<void> {
   try {
     const token = localStorage.getItem(ACCESS_KEY)
@@ -21,7 +24,8 @@ export async function streamChat({ convId, query, onChunk, onDone, onError }: St
     })
 
     if (!response.ok || !response.body) {
-      throw new Error(`流式请求失败：${response.status}`)
+      const errText = await response.text().catch(() => '')
+      throw new Error(`请求失败：${response.status} ${errText.slice(0, 100)}`)
     }
 
     const reader = response.body.getReader()
@@ -37,13 +41,41 @@ export async function streamChat({ convId, query, onChunk, onDone, onError }: St
       buffer = events.pop() ?? ''
 
       for (const event of events) {
-        const line = event.split('\n').find((item) => item.startsWith('data: '))
-        if (!line) continue
-        const payload = JSON.parse(line.slice(6))
-        if (payload.done) {
-          onDone(payload.sources ?? [])
-        } else if (payload.content) {
-          onChunk(payload.content)
+        if (!event.trim()) continue
+        for (const line of event.split('\n')) {
+          if (!line.startsWith('data: ')) continue
+          try {
+            const payload = JSON.parse(line.slice(6))
+            if (payload.done) {
+              onDone(payload.sources ?? [])
+              return
+            }
+            if (payload.content) {
+              onChunk(payload.content)
+            }
+          } catch {
+            // ignore parse errors
+          }
+        }
+      }
+
+      // 关键：每读完一批数据，yield 给浏览器让 React 渲染
+      await yieldToMain()
+    }
+
+    // 处理 buffer 中最后的事件
+    if (buffer.trim()) {
+      for (const line of buffer.split('\n')) {
+        if (!line.startsWith('data: ')) continue
+        try {
+          const payload = JSON.parse(line.slice(6))
+          if (payload.done) {
+            onDone(payload.sources ?? [])
+          } else if (payload.content) {
+            onChunk(payload.content)
+          }
+        } catch {
+          // ignore
         }
       }
     }

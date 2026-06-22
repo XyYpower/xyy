@@ -19,9 +19,9 @@ async def rag_query(db: AsyncSession, user_id: uuid.UUID, query: str) -> tuple[s
 
 def _fallback_answer(query: str, contexts: list[dict]) -> str:
     if not contexts:
-        return f"我没有找到和“{query}”相关的知识库内容。你可以先导入或创建相关知识点。"
+        return "未配置 LLM API Key，无法调用 AI 模型。请前往 设置 → AI 配置 填入 API Key。"
     source_lines = "\n".join(
-        f"- {context['note_title']}：{context['chunk_text'][:160]}"
-        for context in contexts
+        "- {}: {}".format(ctx['note_title'], ctx['chunk_text'][:160])
+        for ctx in contexts
     )
-    return f"根据当前知识库，和“{query}”相关的内容主要有：\n{source_lines}"
+    return "从知识库中检索到相关内容（未配置 LLM，无法生成深度回答）：\n{}".format(source_lines)

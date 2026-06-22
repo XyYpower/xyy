@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Button, Switch, TimePicker, Input, Typography, message } from 'antd'
+import { Button, Switch, TimePicker, Input, Select, Typography, message } from 'antd'
 import { DownloadOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { downloadExport } from '../api/export'
@@ -27,11 +27,25 @@ export default function Settings() {
   const [reminderTime, setReminderTime] = useState<string | null>(user?.reminder_time?.slice(0, 5) || null)
   const [savingReminder, setSavingReminder] = useState(false)
 
+  // LLM 配置
+  const [llmProvider, setLlmProvider] = useState<string>(user?.llm_provider || 'deepseek')
+  const [llmModel, setLlmModel] = useState<string>(user?.llm_model || '')
+  const [llmApiKey, setLlmApiKey] = useState('')
+  const [savingLLM, setSavingLLM] = useState(false)
+
+  const MODEL_OPTIONS: Record<string, string[]> = {
+    deepseek: ['deepseek-chat', 'deepseek-reasoner'],
+    openai: ['gpt-4o-mini', 'gpt-4o', 'gpt-3.5-turbo'],
+    glm: ['glm-4-flash', 'glm-4', 'glm-4-plus', 'glm-4v'],
+  }
+
   useEffect(() => {
     if (user) {
       setEmail(user.email || '')
       setReminderEnabled(user.reminder_enabled)
       setReminderTime(user.reminder_time?.slice(0, 5) || null)
+      setLlmProvider(user.llm_provider || 'deepseek')
+      setLlmModel(user.llm_model || '')
     }
   }, [user])
 
@@ -91,12 +105,30 @@ export default function Settings() {
     }
   }
 
-  const exportData = async (type: 'json' | 'markdown' | 'anki') => {
+  const exportData = async (type: 'json' | 'markdown') => {
     try {
       await downloadExport(type)
       message.success('导出已开始')
     } catch {
       message.error('导出失败')
+    }
+  }
+
+  const handleSaveLLM = async () => {
+    setSavingLLM(true)
+    try {
+      await authApi.updateLLMSettings({
+        llm_provider: llmProvider,
+        llm_api_key: llmApiKey || undefined,
+        llm_model: llmModel || undefined,
+      })
+      await loadMe()
+      message.success('AI 配置已保存')
+      setLlmApiKey('')
+    } catch {
+      message.error('保存失败')
+    } finally {
+      setSavingLLM(false)
     }
   }
 
@@ -178,10 +210,70 @@ export default function Settings() {
           </div>
         </section>
 
+        {/* AI 配置 */}
+        <section className="bg-white border border-gray-200 rounded-lg p-5">
+          <Title level={4}>AI 配置</Title>
+          <Text type="secondary">配置 LLM 提供商、模型和 API Key，用于 AI 对话、卡片生成、面试评分</Text>
+          <div className="space-y-3 mt-3">
+            <div>
+              <Text type="secondary" className="text-sm">LLM 提供商</Text>
+              <Select
+                value={llmProvider}
+                onChange={(v) => {
+                  setLlmProvider(v)
+                  setLlmModel('')  // 切换提供商时重置模型
+                }}
+                className="w-full mt-1"
+                options={[
+                  { label: 'DeepSeek（推荐，性价比高）', value: 'deepseek' },
+                  { label: 'OpenAI', value: 'openai' },
+                  { label: 'GLM（智谱 AI）', value: 'glm' },
+                ]}
+              />
+            </div>
+            <div>
+              <Text type="secondary" className="text-sm">模型名称</Text>
+              <Input
+                value={llmModel}
+                onChange={(e) => setLlmModel(e.target.value)}
+                className="mt-1"
+                placeholder={`留空使用默认模型，或输入模型名如 ${(MODEL_OPTIONS[llmProvider] || ['deepseek-chat'])[0]}`}
+                list="model-suggestions"
+              />
+              <datalist id="model-suggestions">
+                {(MODEL_OPTIONS[llmProvider] || []).map((m) => (
+                  <option key={m} value={m} />
+                ))}
+              </datalist>
+              <Text type="secondary" className="text-xs mt-1 block">
+                常用：{(MODEL_OPTIONS[llmProvider] || []).join(' / ')}
+              </Text>
+            </div>
+            <div>
+              <Text type="secondary" className="text-sm">
+                API Key {user?.llm_api_key_set && <span className="text-green-600">（已配置）</span>}
+              </Text>
+              <Input.Password
+                value={llmApiKey}
+                onChange={(e) => setLlmApiKey(e.target.value)}
+                placeholder={user?.llm_api_key_set ? '输入新 Key 以更新，留空则不修改' : '输入你的 API Key'}
+                className="mt-1"
+              />
+            </div>
+            <div className="text-xs text-gray-400 space-y-1">
+              <p>Key 存储在数据库中，仅用于你的 AI 功能调用，不会泄露给其他用户。</p>
+              <p>DeepSeek: <a href="https://platform.deepseek.com" target="_blank" className="text-blue-500">platform.deepseek.com</a></p>
+              <p>GLM: <a href="https://open.bigmodel.cn" target="_blank" className="text-blue-500">open.bigmodel.cn</a></p>
+              <p>OpenAI: <a href="https://platform.openai.com" target="_blank" className="text-blue-500">platform.openai.com</a></p>
+            </div>
+            <Button loading={savingLLM} onClick={handleSaveLLM} type="primary">保存 AI 配置</Button>
+          </div>
+        </section>
+
         {/* 数据导出 */}
         <section className="bg-white border border-gray-200 rounded-lg p-5">
           <Title level={4}>数据导出</Title>
-          <Text type="secondary">导出当前账号的知识点、复习卡片、学习路径和面试记录</Text>
+          <Text type="secondary">导出当前账号的知识点、复习卡片和面试记录</Text>
           <div className="mt-4 flex flex-wrap gap-3">
             <Button icon={<DownloadOutlined />} onClick={() => exportData('json')}>
               导出 JSON
@@ -189,46 +281,6 @@ export default function Settings() {
             <Button icon={<DownloadOutlined />} onClick={() => exportData('markdown')}>
               导出 Markdown
             </Button>
-            <Button icon={<DownloadOutlined />} onClick={() => exportData('anki')}>
-              导出 Anki CSV
-            </Button>
-          </div>
-        </section>
-
-        {/* MCP Server */}
-        <section className="bg-white border border-gray-200 rounded-lg p-5">
-          <Title level={4}>MCP Server</Title>
-          <Text type="secondary">
-            KnowBase 支持 MCP（Model Context Protocol），可以让 Claude Desktop、Cursor 等 AI 工具直接访问你的知识库。
-          </Text>
-          <div className="mt-3 space-y-2">
-            <div className="bg-yellow-50 border border-yellow-200 rounded p-3 text-sm">
-              <Text strong className="text-yellow-700">默认关闭</Text>
-              <div className="text-yellow-600 mt-1">
-                MCP 需要在环境变量中显式启用。在 <code>.env</code> 文件中配置：
-              </div>
-              <div className="bg-gray-800 text-green-400 rounded p-2 mt-2 font-mono text-xs">
-                KNOWBASE_MCP_ENABLED=true<br/>
-                KNOWBASE_MCP_USER_ID=你的用户ID<br/>
-                KNOWBASE_MCP_TOKEN=你的访问令牌
-              </div>
-            </div>
-            <div className="text-sm text-gray-500">
-              <p className="mb-1"><strong>启用后可用工具：</strong></p>
-              <ul className="list-disc list-inside space-y-1">
-                <li><code>search_notes</code> — 搜索知识点</li>
-                <li><code>get_note</code> — 获取知识点详情</li>
-                <li><code>create_note_draft</code> — 创建知识点草稿</li>
-                <li><code>get_review_cards</code> — 获取今日复习卡片</li>
-                <li><code>generate_interview_questions</code> — 生成面试题</li>
-              </ul>
-              <p className="mt-2 mb-1"><strong>可用资源：</strong></p>
-              <ul className="list-disc list-inside space-y-1">
-                <li><code>knowbase://notes/{"{id}"}</code> — 知识点内容</li>
-                <li><code>knowbase://reviews/today</code> — 今日复习</li>
-                <li><code>knowbase://paths</code> — 学习路径</li>
-              </ul>
-            </div>
           </div>
         </section>
       </div>

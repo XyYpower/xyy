@@ -20,4 +20,7 @@ export const categoryApi = {
 
   delete: (id: string) =>
     client.delete<any, ApiResponse<null>>(`/categories/${id}`),
+
+  createPresets: () =>
+    client.post<any, ApiResponse<Category[]>>('/categories/presets'),
 }

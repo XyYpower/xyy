@@ -11,6 +11,7 @@ from app.schemas.auth import (
     RefreshRequest,
     RegisterRequest,
     TokenResponse,
+    UpdateLLMSettingsRequest,
     UpdateProfileRequest,
     UserOut,
 )
@@ -69,6 +70,7 @@ async def update_profile(
             ) from exc
 
     await db.flush()
+    await db.commit()
     await db.refresh(current_user)
     return success(UserOut.model_validate(current_user))
 
@@ -84,4 +86,23 @@ async def change_password(
 
     current_user.password_hash = auth_service.hash_password(data.new_password)
     await db.flush()
+    await db.commit()
     return success(message="密码已修改")
+
+
+@router.put("/llm-settings")
+async def update_llm_settings(
+    data: UpdateLLMSettingsRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if data.llm_provider is not None:
+        current_user.llm_provider = data.llm_provider
+    if data.llm_api_key is not None:
+        current_user.llm_api_key = data.llm_api_key.strip() or None
+    if data.llm_model is not None:
+        current_user.llm_model = data.llm_model.strip() or None
+    await db.flush()
+    await db.commit()
+    await db.refresh(current_user)
+    return success(UserOut.model_validate(current_user))

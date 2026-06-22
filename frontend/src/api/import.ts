@@ -46,4 +46,7 @@ export const importApi = {
 
   confirmImport: (jobId: string) =>
     client.post<any, ApiResponse<Note[]>>(`/import/jobs/${jobId}/confirm`),
+
+  quickImport: (markdown: string, categoryId?: string) =>
+    client.post<any, ApiResponse<{ count: number; notes: Note[] }>>('/import/quick', { markdown, category_id: categoryId }),
 }

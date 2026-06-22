@@ -2,7 +2,6 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { Layout as AntLayout, Menu } from 'antd'
 import {
   BookOutlined,
-  BranchesOutlined,
   ImportOutlined,
   MessageOutlined,
   HomeOutlined,
@@ -10,9 +9,6 @@ import {
   ScheduleOutlined,
   SettingOutlined,
   TrophyOutlined,
-  DashboardOutlined,
-  ThunderboltOutlined,
-  ExperimentOutlined,
 } from '@ant-design/icons'
 import { Button } from 'antd'
 import { useAuthStore } from '../store/authStore'
@@ -20,52 +16,17 @@ import { useAuthStore } from '../store/authStore'
 const { Sider, Content } = AntLayout
 
 const menuItems = [
-  {
-    type: 'group' as const,
-    label: '工作台',
-    children: [
-      { key: '/', icon: <HomeOutlined />, label: '概览' },
-      { key: '/workspace', icon: <ThunderboltOutlined />, label: 'Agent' },
-    ],
-  },
-  {
-    type: 'group' as const,
-    label: '知识库',
-    children: [
-      { key: '/notes', icon: <BookOutlined />, label: '知识点' },
-      { key: '/import', icon: <ImportOutlined />, label: '导入知识' },
-      { key: '/chat', icon: <MessageOutlined />, label: 'AI 对话' },
-    ],
-  },
-  {
-    type: 'group' as const,
-    label: '训练',
-    children: [
-      { key: '/review', icon: <ScheduleOutlined />, label: '间隔复习' },
-      { key: '/paths', icon: <BranchesOutlined />, label: '学习路径' },
-      { key: '/interview', icon: <TrophyOutlined />, label: '模拟面试' },
-    ],
-  },
-  {
-    type: 'group' as const,
-    label: '实验室',
-    children: [
-      { key: '/traces', icon: <ExperimentOutlined />, label: 'Trace Lab' },
-      { key: '/portfolio', icon: <DashboardOutlined />, label: 'Portfolio' },
-    ],
-  },
-  {
-    type: 'group' as const,
-    label: '系统',
-    children: [
-      { key: '/settings', icon: <SettingOutlined />, label: '设置' },
-    ],
-  },
+  { key: '/', icon: <HomeOutlined />, label: '概览' },
+  { key: '/notes', icon: <BookOutlined />, label: '知识点' },
+  { key: '/import', icon: <ImportOutlined />, label: '导入知识' },
+  { key: '/review', icon: <ScheduleOutlined />, label: '间隔复习' },
+  { key: '/interview', icon: <TrophyOutlined />, label: '模拟面试' },
+  { key: '/chat', icon: <MessageOutlined />, label: 'AI 对话' },
+  { key: '/settings', icon: <SettingOutlined />, label: '设置' },
 ]
 
-// 扁平化用于选中状态计算
 function findSelectedKey(pathname: string): string {
-  const flatKeys = ['/', '/workspace', '/notes', '/import', '/chat', '/review', '/paths', '/interview', '/traces', '/portfolio', '/settings']
+  const flatKeys = ['/', '/notes', '/import', '/review', '/interview', '/chat', '/settings']
   return flatKeys.find(
     (key) => pathname === key || (key !== '/' && pathname.startsWith(key))
   ) || '/'

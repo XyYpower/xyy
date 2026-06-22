@@ -13,6 +13,7 @@ from app.schemas.import_job import (
     ImportResultOut,
     ImportTextRequest,
     ImportUrlRequest,
+    QuickImportRequest,
 )
 from app.schemas.note import NoteOut
 from app.services import import_service, review_service
@@ -103,3 +104,21 @@ async def confirm(
     for note in notes:
         background_tasks.add_task(review_service.generate_cards_for_note_task, current_user.id, note.id)
     return success([NoteOut.model_validate(note) for note in notes])
+
+
+@router.post("/quick")
+async def quick_import(
+    data: QuickImportRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """快速导入 Markdown：按 ## 标题拆分，直接创建笔记 + 后台生成复习卡片。"""
+    notes = await import_service.quick_import_markdown(db, current_user.id, data.markdown, data.category_id)
+    await db.commit()
+    for note in notes:
+        background_tasks.add_task(review_service.generate_cards_for_note_task, current_user.id, note.id)
+    return success({
+        "count": len(notes),
+        "notes": [NoteOut.model_validate(note) for note in notes],
+    })

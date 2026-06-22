@@ -18,7 +18,7 @@ def test_build_rag_messages_includes_context_and_query():
     messages = prompts.build_rag_messages("JWT 怎么校验？", contexts)
 
     assert messages[0]["role"] == "system"
-    assert "KnowBase AI 助手" in messages[0]["content"]
+    assert "编程学习助手" in messages[0]["content"]
     assert "JWT 认证" in messages[0]["content"]
     assert messages[-1] == {"role": "user", "content": "JWT 怎么校验？"}
 
@@ -50,7 +50,7 @@ async def test_rag_query_uses_retrieval_and_llm(monkeypatch):
             return "可以用布隆过滤器。"
 
     monkeypatch.setattr(pipeline.retrieval, "search_similar", fake_search)
-    monkeypatch.setattr(pipeline, "get_llm", lambda: FakeLLM())
+    monkeypatch.setattr(pipeline, "get_llm", lambda **_: FakeLLM())
 
     answer, sources = await pipeline.rag_query(None, user_id, "怎么处理缓存穿透？")  # type: ignore[arg-type]
 
@@ -68,9 +68,9 @@ async def test_rag_query_falls_back_without_api_key(monkeypatch):
         return []
 
     monkeypatch.setattr(pipeline.retrieval, "search_similar", fake_search)
-    monkeypatch.setattr(pipeline, "get_llm", lambda: NoKeyLLM())
+    monkeypatch.setattr(pipeline, "get_llm", lambda **_: NoKeyLLM())
 
     answer, sources = await pipeline.rag_query(None, uuid.uuid4(), "没有资料的问题")  # type: ignore[arg-type]
 
-    assert "没有找到" in answer
+    assert "LLM" in answer
     assert sources == []

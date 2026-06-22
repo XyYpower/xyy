@@ -18,6 +18,11 @@ class ImportCodeRequest(BaseModel):
     language: str | None = None
 
 
+class QuickImportRequest(BaseModel):
+    markdown: str = Field(..., min_length=10, description="Markdown 内容，按 ## 标题拆分为知识点")
+    category_id: uuid.UUID | None = None
+
+
 class DraftUpdateRequest(BaseModel):
     title: str | None = Field(None, min_length=1, max_length=200)
     content: str | None = None

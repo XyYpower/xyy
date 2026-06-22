@@ -101,7 +101,7 @@ async def test_chat_stream_persists_messages_and_sources(monkeypatch):
             yield "可以提前拦截。"
 
     monkeypatch.setattr(chat_service.retrieval, "search_similar", fake_search)
-    monkeypatch.setattr(chat_service, "get_llm", lambda: FakeLLM())
+    monkeypatch.setattr(chat_service, "get_llm", lambda **_: FakeLLM())
 
     try:
         user = await _create_user(username)
@@ -148,7 +148,7 @@ async def test_chat_stream_uses_fallback_without_api_key(monkeypatch):
         api_key = ""
 
     monkeypatch.setattr(chat_service.retrieval, "search_similar", fake_search)
-    monkeypatch.setattr(chat_service, "get_llm", lambda: NoKeyLLM())
+    monkeypatch.setattr(chat_service, "get_llm", lambda **_: NoKeyLLM())
 
     try:
         user = await _create_user(username)
@@ -159,7 +159,7 @@ async def test_chat_stream_uses_fallback_without_api_key(monkeypatch):
             await session.commit()
 
         assert chunks
-        assert "没有找到" in "".join(chunks)
+        assert "LLM" in "".join(chunks)
     finally:
         await _cleanup_users([username])
 
@@ -179,7 +179,7 @@ async def test_chat_stream_does_not_mix_partial_llm_output_with_fallback(monkeyp
             raise RuntimeError("stream interrupted")
 
     monkeypatch.setattr(chat_service.retrieval, "search_similar", fake_search)
-    monkeypatch.setattr(chat_service, "get_llm", lambda: BrokenLLM())
+    monkeypatch.setattr(chat_service, "get_llm", lambda **_: BrokenLLM())
 
     try:
         user = await _create_user(username)
@@ -237,7 +237,7 @@ async def test_chat_stream_updates_conversation_updated_at(monkeypatch):
         api_key = ""
 
     monkeypatch.setattr(chat_service.retrieval, "search_similar", fake_search)
-    monkeypatch.setattr(chat_service, "get_llm", lambda: NoKeyLLM())
+    monkeypatch.setattr(chat_service, "get_llm", lambda **_: NoKeyLLM())
 
     try:
         user = await _create_user(username)

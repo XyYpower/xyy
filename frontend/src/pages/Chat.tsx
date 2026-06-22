@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Empty, Input, List, Modal, Space, Tag, Typography, message } from 'antd'
-import { DeleteOutlined, MessageOutlined, PlusOutlined, SendOutlined, LikeOutlined, DislikeOutlined } from '@ant-design/icons'
+import { DeleteOutlined, MessageOutlined, PlusOutlined, SendOutlined, LikeOutlined, DislikeOutlined, SaveOutlined } from '@ant-design/icons'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import { chatApi, type Conversation, type Message } from '../api/chat'
 import { streamChat } from '../api/streamClient'
-import { evalApi } from '../api/eval'
 
 const { Text, Title } = Typography
 const { TextArea } = Input
@@ -265,14 +264,30 @@ export default function Chat() {
 function MessageBubble({ message: item }: { message: Message }) {
   const isUser = item.role === 'user'
   const [feedbackGiven, setFeedbackGiven] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   const handleFeedback = async (rating: string) => {
     if (!item.id || item.id.startsWith('local-')) return
     try {
-      await evalApi.submitFeedback({ message_id: item.id, rating })
+      await chatApi.submitFeedback({ message_id: item.id, rating })
       setFeedbackGiven(rating)
     } catch {
       // 静默
+    }
+  }
+
+  const handleSaveAsNote = async () => {
+    if (!item.id || item.id.startsWith('local-')) return
+    setSaving(true)
+    try {
+      const res = await chatApi.saveAsNote(item.id)
+      setSaved(true)
+      message.success(`已保存为笔记：${res.data.title}`)
+    } catch {
+      message.error('保存失败')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -297,10 +312,24 @@ function MessageBubble({ message: item }: { message: Message }) {
           </div>
         )}
         {!isUser && !item.id.startsWith('local-') && (
-          <div className="mt-2 pt-2 border-t border-gray-100 flex gap-2">
+          <div className="mt-2 pt-2 border-t border-gray-100 flex gap-2 items-center">
+            {saved ? (
+              <Text type="secondary" className="text-xs">已保存为笔记</Text>
+            ) : (
+              <Button
+                type="text"
+                size="small"
+                icon={<SaveOutlined />}
+                loading={saving}
+                onClick={handleSaveAsNote}
+              >
+                保存为笔记
+              </Button>
+            )}
+            <span className="text-gray-300">|</span>
             {feedbackGiven ? (
               <Text type="secondary" className="text-xs">
-                {feedbackGiven === 'helpful' ? '感谢反馈' : '已收到反馈，会持续改进'}
+                {feedbackGiven === 'helpful' ? '感谢反馈' : '已收到反馈'}
               </Text>
             ) : (
               <>

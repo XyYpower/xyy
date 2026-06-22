@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Modal, List, Button, Input, Space, Popconfirm, message } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { categoryApi, type Category } from '../api/categories'
@@ -19,7 +19,7 @@ export default function CategoryManager({ open, onClose, onUpdated }: CategoryMa
   const [newName, setNewName] = useState('')
   const [newDesc, setNewDesc] = useState('')
 
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     setLoading(true)
     try {
       const res = await categoryApi.list()
@@ -29,11 +29,11 @@ export default function CategoryManager({ open, onClose, onUpdated }: CategoryMa
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     if (open) fetchCategories()
-  }, [open])
+  }, [open, fetchCategories])
 
   const handleCreate = async () => {
     if (!newName.trim()) return

@@ -30,4 +30,13 @@ export const chatApi = {
 
   delete: (id: string) =>
     client.delete<any, ApiResponse<null>>(`/chat/conversations/${id}`),
+
+  submitFeedback: (data: { message_id: string; rating: string; issue_type?: string; comment?: string }) =>
+    client.post<any, ApiResponse<{ id: string; rating: string }>>('/chat/feedback', data),
+
+  getFeedbackStats: () =>
+    client.get<any, ApiResponse<{ total: number; helpful: number; not_helpful: number; helpful_rate: number }>>('/chat/feedback/stats'),
+
+  saveAsNote: (messageId: string) =>
+    client.post<any, ApiResponse<{ id: string; title: string }>>(`/chat/messages/${messageId}/save-as-note`),
 }

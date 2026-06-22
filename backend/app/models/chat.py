@@ -69,3 +69,21 @@ class NoteChunk(Base):
     __table_args__ = (
         UniqueConstraint("note_id", "chunk_index", name="uq_note_chunk_index"),
     )
+
+
+class MessageFeedback(Base):
+    """消息反馈表：收集用户对 AI 回答的质量反馈。"""
+
+    __tablename__ = "message_feedback"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    message_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("messages.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    rating: Mapped[str] = mapped_column(String(20), nullable=False)  # helpful / not_helpful
+    issue_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

@@ -25,7 +25,7 @@ async def test_generate_cards_logs_warning_when_configured_llm_fails(monkeypatch
         async def chat_json(self, messages):
             raise RuntimeError("remote API unavailable")
 
-    monkeypatch.setattr(card_generator, "get_llm", lambda: BrokenLLM())
+    monkeypatch.setattr(card_generator, "get_llm", lambda **_: BrokenLLM())
 
     cards = await generate_cards("FastAPI 依赖注入", "Depends 用于声明依赖。")
 

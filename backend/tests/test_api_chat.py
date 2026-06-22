@@ -55,7 +55,7 @@ async def test_chat_api_streams_and_persists_messages(monkeypatch):
         api_key = ""
 
     monkeypatch.setattr(chat_service.retrieval, "search_similar", fake_search)
-    monkeypatch.setattr(chat_service, "get_llm", lambda: NoKeyLLM())
+    monkeypatch.setattr(chat_service, "get_llm", lambda **_: NoKeyLLM())
 
     try:
         transport = ASGITransport(app=app)
@@ -87,6 +87,6 @@ async def test_chat_api_streams_and_persists_messages(monkeypatch):
             ).scalars().all()
             assert [message.role for message in messages] == ["user", "assistant"]
             assert messages[0].content == "什么是 RAG？"
-            assert "没有找到" in messages[1].content
+            assert "LLM" in messages[1].content
     finally:
         await _cleanup_users([username])

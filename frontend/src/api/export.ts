@@ -1,11 +1,10 @@
 import { ACCESS_KEY } from '../store/authTokens'
 
-type ExportType = 'json' | 'markdown' | 'anki'
+type ExportType = 'json' | 'markdown'
 
 const filenameMap: Record<ExportType, string> = {
   json: 'knowbase-export.json',
   markdown: 'knowbase-notes.md',
-  anki: 'knowbase-anki.csv',
 }
 
 export async function downloadExport(type: ExportType): Promise<void> {

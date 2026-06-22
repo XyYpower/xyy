@@ -74,7 +74,7 @@ knowbase/
 │   ├── V2.3-task.md       # V2.3 任务书（已完成）
 │   ├── V3.0-task.md       # V3.0 任务书（已完成）
 │   ├── V3.1-agentic-redesign.md # Agentic Learning OS 重设计方案（已实现至 V4.0）
-│   └── V4.1-quality-ux-redesign.md # 质量加固与主体验升级方案（待实现）
+│   └── V4.1-quality-ux-redesign.md # 质量加固与主体验升级方案（进行中）
 ├── docker-compose.yml     # PostgreSQL + pgvector
 ├── .env.example           # 环境变量模板
 ├── .gitignore
@@ -99,15 +99,21 @@ knowbase/
 │       │   ├── interview.py # AI 模拟面试
 │       │   ├── export.py  # 数据导出
 │       │   ├── tags.py    # 标签列表
-│       │   └── categories.py  # 分类 CRUD（用户隔离）
+│       │   ├── categories.py  # 分类 CRUD（用户隔离）
+│       │   ├── traces.py  # Trace Lab API
+│       │   ├── workspace.py # Agent Workspace API
+│       │   ├── eval.py    # RAG 评估 API
+│       │   └── portfolio.py # Portfolio Builder API
 │       ├── models/        # SQLAlchemy ORM 模型
 │       │   ├── user.py    # User
 │       │   ├── note.py    # Note / Category / Tag
 │       │   ├── review.py  # ReviewCard / ReviewRecord
 │       │   ├── import_job.py # ImportJob / ExtractionDraft
-│       │   ├── path.py    # LearningPath
+│       │   ├── path.py    # LearningPath / Module / Topic / Task
 │       │   ├── chat.py    # Conversation / Message / NoteChunk
-│       │   └── interview.py # InterviewSession / InterviewQuestion
+│       │   ├── interview.py # InterviewSession / InterviewQuestion
+│       │   ├── agent.py   # AgentRun / AgentStep / ToolCall / AICallLog
+│       │   └── eval.py    # EvalCase / EvalRun / EvalResult / MessageFeedback
 │       ├── schemas/       # Pydantic 请求/响应模型
 │       │   ├── common.py  # Response[T] / PageResult[T]
 │       │   ├── auth.py    # 认证相关 schema
@@ -125,14 +131,17 @@ knowbase/
 │       │   ├── path_service.py
 │       │   ├── chat_service.py
 │       │   ├── interview_service.py
-│       │   └── export_service.py
+│       │   ├── export_service.py
+│       │   ├── eval_service.py
+│       │   └── portfolio_service.py
 │       ├── agents/          # Agent Runtime 模块
 │       │   ├── registry.py  # Tool Registry
 │       │   ├── runtime.py   # AgentRun 生命周期管理
 │       │   ├── traces.py    # Trace 记录器 + LLM 日志
 │       │   ├── tools.py     # 现有服务工具注册
 │       │   ├── diagnosis.py # DiagnosisAgent 诊断薄弱点
-│       │   └── planner.py   # PlannerAgent 学习规划
+│       │   ├── planner.py   # PlannerAgent 学习规划
+│       │   └── langgraph_adapter.py # LangGraph StateGraph 工作流
 │       ├── rag/           # LLM / RAG 相关能力
 │       │   ├── llm.py
 │       │   ├── card_generator.py
@@ -143,8 +152,11 @@ knowbase/
 │       │   ├── prompts.py
 │       │   ├── pipeline.py
 │       │   └── interviewer.py
+│       ├── mcp/             # MCP Server 模块
+│       │   └── server.py    # FastMCP + SSE transport（Tools/Resources/Prompts）
 │       └── utils/
-│           └── response.py  # 响应工具函数
+│           ├── response.py  # 响应工具函数
+│           └── time.py      # utc_now 共享工具
 │
 └── frontend/
     ├── package.json
@@ -166,10 +178,15 @@ knowbase/
         │   ├── streamClient.ts # SSE 流式请求
         │   ├── interview.ts # 面试 API 客户端
         │   ├── export.ts  # 导出下载
-        │   └── dashboard.ts # 仪表盘聚合请求
+        │   ├── dashboard.ts # 仪表盘聚合请求
         │   ├── categories.ts # 分类 CRUD API 客户端
         │   ├── tags.ts    # 标签列表 API 客户端
-        │   └── traces.ts  # Trace Lab API 客户端
+        │   ├── traces.ts  # Trace Lab API 客户端
+        │   ├── workspace.ts # Agent Workspace API 客户端
+        │   ├── eval.ts    # RAG 评估 API 客户端
+        │   └── portfolio.ts # Portfolio API 客户端
+        ├── constants/
+        │   └── agent.ts   # 共享常量（runTypeLabels 等）
         ├── components/
         │   ├── Layout.tsx # 侧边栏布局
         │   ├── AuthRoute.tsx # 认证路由守卫
@@ -187,6 +204,7 @@ knowbase/
             ├── Settings.tsx   # 设置 + 数据导出
             ├── TraceLab.tsx   # Agent 运行追踪 + AI 调用监控
             ├── AgentWorkspace.tsx # Agent 工作台（诊断+规划+每日任务）
+            ├── Portfolio.tsx  # 面试展示页（项目报告/学习报告/Agent Run 回放）
             ├── Login.tsx      # 登录
             ├── Register.tsx   # 注册
             └── Chat.tsx       # AI 对话（RAG + SSE）
@@ -594,7 +612,7 @@ npm run dev   # http://localhost:5173
 - [x] Markdown 编辑器（分屏编辑预览）
 - [x] NoteDetail 页面整合升级
 
-### Phase 4 — Agentic Learning OS（V3.1-V4.0 已完成，V4.1 待实现）
+### Phase 4 — Agentic Learning OS（V3.1-V4.0 已完成，V4.1 进行中）
 
 > Agentic Learning OS 原始重设计方案见 [V3.1-agentic-redesign.md](V3.1-agentic-redesign.md)
 > V4.1 质量加固与主体验升级方案见 [V4.1-quality-ux-redesign.md](V4.1-quality-ux-redesign.md)
@@ -659,6 +677,29 @@ npm run dev   # http://localhost:5173
 - [x] 前端工程质量归零：eslint 0 errors（API 文件允许 any，React hooks 规则降级为 warn）
 - [x] 侧边栏分组：工作台/知识库/训练/实验室/系统
 - [x] Dashboard 升级为今日学习工作台（今日任务队列 + 快捷操作 + 进度 + AI 概览）
+- [x] Agent Workspace 升级为执行台（三栏布局：运行控制 / Agent 产物 / 执行状态）
+- [x] Trace Lab 升级为运行回放（客户端过滤、RAG 质量区、详情 Tabs、ToolCall 参数/结果 JSON）
+- [x] Portfolio 升级为面试展示页（项目定位、能力矩阵、工程证据、报告导出、代表性 Run）
+- [x] V4.1 代码审查修复：MCP Token 认证中间件；LangGraph workflow 归属校验；tsquery 消毒（websearch_to_tsquery）；email 格式校验 + db.commit 补全；_record_call rollback；import_create_text 审批门控；raw_context 数据泄露清除；_utc_now 共享工具提取；N+1 flush 优化；前端 NoteDetail 闭包修复、Dashboard 错误反馈、响应式断点、CategoryManager useCallback、portfolio Axios 统一、runTypeLabels 共享常量、cost.toFixed 防御
+
+### Phase 5 — 精简重构（V5.0 已完成）
+
+> 从 AI Agent Demo 转型为每日可用的编程学习工具。删除 ~5300 行过度设计代码，保留核心功能并提升体验。
+
+**V5.0 — 精简重构**
+- [x] 删除 demo 模块：agents/（8 文件）、mcp/（2 文件）、eval_service/portfolio_service/path_service、5 个 API router（traces/workspace/eval/portfolio/paths）、3 个 ORM 模型（agent/eval/path）、hybrid_retrieval、Anki CSV 导出
+- [x] MessageFeedback 从 eval 模块迁移至 chat 模块（模型+服务+API）
+- [x] 清理 main.py（移除 register_all_tools、MCP 挂载）、router.py（移除 5 个 router）、models/__init__.py（移除 agent/eval/path 导出）、config.py（移除 MCP 配置）、export_service.py（移除 paths 导出和 Anki）
+- [x] 清理前端：删除 4 个页面（TraceLab/AgentWorkspace/Portfolio/Paths）、5 个 API client（traces/workspace/eval/portfolio/paths）、constants/agent.ts
+- [x] 重写 Dashboard 为学习看板：连续打卡天数（localStorage streak）、快速添加知识点、待复习卡片入口、掌握进度条、最近面试
+- [x] 侧边栏扁平化：7 项菜单无分组（概览/知识点/导入/间隔复习/模拟面试/AI 对话/设置）
+- [x] 复习 UX 改进：红/橙/绿三色评分按钮 + 间隔说明（很快再看/明天再看/等更久）+ 完成用时统计
+- [x] 笔记页 UX 改进：快速添加输入框、分类标签 chips 筛选、内容代码预览
+- [x] NoteDetail 加"生成卡片"按钮（调用已有 review/generate 端点）
+- [x] Chat 加"保存为笔记"按钮（POST /chat/messages/{id}/save-as-note，创建 note + embedding）
+- [x] 八股分类预设：POST /categories/presets，一键创建 10 个 Java 后端面试分类
+- [x] 修复编码问题：pipeline.py 和 chat_service.py 中的 Unicode curly quotes 改为 ASCII
+- [x] 清理测试：删除 4 个 demo 测试文件，更新 3 个测试的断言，总测试 46 passed
 
 ---
 
@@ -688,7 +729,7 @@ npm run dev   # http://localhost:5173
 2. ~~**react-markdown 未使用** — 已声明依赖但未引入~~ ✅ V3.0 已引入 MarkdownEditor
 3. ~~**App.css 残留** — 仍是 Vite 模板默认样式~~ ✅ 已清理
 4. ~~**分类/标签管理不完整** — 后端只读接口，前端无管理 UI~~ ✅ V3.0 已补齐
-5. **测试覆盖仍少** — 当前 51 个测试覆盖 Auth / SM-2 / 卡片生成 / API 学习闭环 / tags 认证隔离 / Chat / Interview / 导出 / V3.0 分类+账号+收藏；前端交互测试尚未覆盖
+5. **测试覆盖仍少** — 当前 74 个测试覆盖 Auth / SM-2 / 卡片生成 / API 学习闭环 / tags 认证隔离 / Chat / Interview / 导出 / V3.0 分类+账号+收藏 / V4.1 Workspace 审批流程 / Eval+Portfolio API / V4.1 安全单元测试；前端交互测试尚未覆盖
 6. **V2.1 卡片生成有本地兜底** — 未配置 LLM API key 时不会真实调用 AI
 7. ~~**前端构建体积偏大** — 当前 Vite build 有 chunk size 警告，后续可做动态导入~~ ✅ V3.0 路由懒加载已拆分
 8. **GitHub 网络不稳定** — 国内访问 GitHub 需多次重试 git push
@@ -699,9 +740,9 @@ npm run dev   # http://localhost:5173
 13. ~~**前端构建体积继续偏大** — V2.3 引入 Chat/Interview/Markdown 后主 chunk 约 1.5MB，后续可用路由级动态导入拆分~~ ✅ V3.0 路由懒加载已拆分，主 chunk 降至 ~773KB
 14. **SSE 使用 EventSourceResponse** — V2.3 Review 后已切换到 `sse-starlette`，并在流式输出时检查客户端断连，减少页面关闭后继续消耗 LLM API 的风险
 15. **Embedding 兜底不是语义向量** — 未配置 Embedding API key 时使用确定性 hash 向量，只保证流程可跑通，真实检索效果需要配置 OpenAI/GLM 等 embedding 服务
-16. **MCP 用户隔离待加固** — 当前 MCP Server 使用默认第一个用户作为本地场景兜底；V4.1 需改为默认关闭并绑定明确用户
-17. **LangGraph 审批语义待修正** — 当前规划节点会先创建学习路径和任务，再进入 approval；V4.1 需拆为 preview/commit，拒绝时不得落库任务
-18. **前端 lint/build 待归零** — 最近审查中 TypeScript 编译通过，但 lint 有多处 API `any` 和 hooks 规则问题；build 受本地 Tailwind native 依赖/Windows 权限问题影响失败
+16. ~~**MCP 用户隔离待加固** — 当前 MCP Server 使用默认第一个用户作为本地场景兜底~~ ✅ V4.1 已改为默认关闭并绑定明确用户
+17. ~~**LangGraph 审批语义待修正** — 当前规划节点会先创建学习路径和任务，再进入 approval~~ ✅ V4.1 已拆为 preview/commit，拒绝审批不落库任务
+18. ~~**前端 build 本地依赖问题** — `npm run build` 曾受本地 Tailwind native 依赖 `@tailwindcss/oxide-win32-x64-msvc` / Windows `spawn EPERM` 影响失败~~ ✅ V4.1 已将 Vite build 改为 `--configLoader native --emptyOutDir false`，当前构建通过（仍有 chunk size 警告）
 
 ---
 
@@ -732,5 +773,8 @@ npm run dev   # http://localhost:5173
 | 2026-06-03 | V4.0 LangGraph Adapter：安装 langgraph；创建 StateGraph 学习规划工作流（diagnose→plan→wait_approval→finalize）；MemorySaver checkpointer 支持暂停/恢复；Workspace API 增加 /workflow/plan 和 /workflow/resume；前端 UX 优化（Ctrl+S、删除确认、新用户引导） |
 | 2026-06-09 | V4.1.1 安全与正确性：MCP 默认关闭 + 绑定明确用户（KNOWBASE_MCP_ENABLED/USER_ID/TOKEN）；planner 拆为 preview_plan/commit_plan；diagnose-and-plan 返回 waiting_approval + approve/reject 端点；拒绝审批不创建任务；Agent 失败状态统一化；前端 AgentWorkspace 适配 preview/approve/reject 流程；后端测试增至 57 个 |
 | 2026-06-09 | V4.1 质量加固续：ToolRegistry.execute 写入真实 tool_calls 表，requires_approval 拦截写工具；path_service 统一生成结构化 modules/topics/tasks；侧边栏分组（工作台/知识库/训练/实验室/系统）；eslint 配置项目级决策（API any 放行、hooks 规则 warn）；Dashboard 升级为今日学习工作台 |
+| 2026-06-09 | V4.1 主体验升级续：Agent Workspace 改为三栏执行台；Trace Lab 增加客户端过滤、运行详情 Tabs、ToolCall 参数/结果 JSON；Portfolio 改为面试展示页（能力矩阵、工程证据、报告导出、代表性 Run）；前端 build 改为 `vite build --configLoader native --emptyOutDir false`，规避 Windows/Node 24 下 Tailwind oxide 与旧 dist 清理权限问题 |
 | 2026-06-09 | 新增 V3.1 Agentic Redesign：规划 Agent Runtime、Tool Registry、Trace Lab、Agent Workspace、RAG 评估、Portfolio Builder、LangGraph/MCP 后续路线 |
 | 2026-06-09 | 新增 V4.1 质量加固与主体验升级设计：聚焦 MCP 安全、审批语义、失败 Trace、ToolCall 追踪、学习路径结构统一、前端工作台/Trace/Portfolio 体验升级 |
+| 2026-06-15 | V4.1 代码审查修复（17 项）：MCP Token 认证中间件；LangGraph workflow 归属校验；tsquery 消毒改用 websearch_to_tsquery；email Pydantic 校验 + db.commit 补全；_record_call rollback；import_create_text 审批门控；raw_context 数据泄露清除（6 处）；_utc_now 提取至 utils/time.py（3 处去重）；N+1 flush 优化（planner + path_service）；前端 NoteDetail Ctrl+S 闭包修复、Dashboard 错误反馈+响应式断点、CategoryManager useCallback、portfolio.ts 统一 Axios、runTypeLabels 共享常量、cost.toFixed 防御；新增 17 个后端测试（eval+portfolio 集成、V4.1 安全单元），总测试 74 passed |
+| 2026-06-15 | V5.0 大重构 — 从 AI Demo 转型为每日学习工具：删除 ~5300 行 demo 代码（agents/mcp/eval/portfolio/workspace/paths/agents），保留核心（auth/notes/review/interview/chat/import/export）；MessageFeedback 迁移至 chat 模块；Dashboard 重写为学习看板（连续打卡天数、快速添加、掌握进度）；侧边栏扁平化 7 项；复习按钮改为红/橙/绿三色+说明；笔记页加快速输入+分类标签筛选；NoteDetail 加"生成卡片"按钮；Chat 加"保存为笔记"功能；新增八股分类预设 API（10 个 Java 后端面试分类）；后端 46 tests passed，前端 build 通过 |

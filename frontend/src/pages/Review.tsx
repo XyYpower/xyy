@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button, Empty, Progress, Space, Tag, Typography, message } from 'antd'
-import { CheckCircleOutlined, EyeOutlined, ReloadOutlined } from '@ant-design/icons'
+import { EyeOutlined, ReloadOutlined } from '@ant-design/icons'
 import { reviewApi, type ReviewCard, type ReviewStats } from '../api/review'
 
 const { Title, Text } = Typography
@@ -17,6 +17,7 @@ export default function Review() {
   const [index, setIndex] = useState(0)
   const [flipped, setFlipped] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [startTime, setStartTime] = useState<number>(Date.now())
 
   const current = cards[index]
   const completed = useMemo(() => Math.min(index, cards.length), [index, cards.length])
@@ -29,6 +30,7 @@ export default function Review() {
       setStats(statsRes.data)
       setIndex(0)
       setFlipped(false)
+      setStartTime(Date.now())
     } catch {
       message.error('加载复习任务失败')
     } finally {
@@ -46,7 +48,10 @@ export default function Review() {
       await reviewApi.submitReview(current.id, quality)
       setFlipped(false)
       if (index + 1 >= cards.length) {
-        message.success('今日复习完成')
+        const elapsed = Math.round((Date.now() - startTime) / 1000)
+        const minutes = Math.floor(elapsed / 60)
+        const seconds = elapsed % 60
+        message.success(`今日复习完成！用时 ${minutes > 0 ? `${minutes}分` : ''}${seconds}秒`)
         await fetchData()
       } else {
         setIndex(index + 1)
@@ -109,12 +114,34 @@ export default function Review() {
             </div>
           </button>
 
-          <div className="mt-6 flex flex-wrap gap-3 justify-center">
-            <Button danger size="large" disabled={!flipped} onClick={() => submit(0)}>完全忘了</Button>
-            <Button size="large" disabled={!flipped} onClick={() => submit(3)}>有点印象</Button>
-            <Button type="primary" size="large" icon={<CheckCircleOutlined />} disabled={!flipped} onClick={() => submit(5)}>
-              很熟悉
-            </Button>
+          <div className="mt-6 grid grid-cols-3 gap-4">
+            <button
+              type="button"
+              disabled={!flipped}
+              onClick={() => submit(0)}
+              className="p-4 rounded-lg border-2 border-red-300 bg-red-50 hover:bg-red-100 disabled:opacity-40 disabled:cursor-not-allowed transition text-center"
+            >
+              <div className="text-lg font-semibold text-red-600">忘了</div>
+              <div className="text-xs text-red-400 mt-1">很快再看</div>
+            </button>
+            <button
+              type="button"
+              disabled={!flipped}
+              onClick={() => submit(3)}
+              className="p-4 rounded-lg border-2 border-orange-300 bg-orange-50 hover:bg-orange-100 disabled:opacity-40 disabled:cursor-not-allowed transition text-center"
+            >
+              <div className="text-lg font-semibold text-orange-600">模糊</div>
+              <div className="text-xs text-orange-400 mt-1">明天再看</div>
+            </button>
+            <button
+              type="button"
+              disabled={!flipped}
+              onClick={() => submit(5)}
+              className="p-4 rounded-lg border-2 border-green-300 bg-green-50 hover:bg-green-100 disabled:opacity-40 disabled:cursor-not-allowed transition text-center"
+            >
+              <div className="text-lg font-semibold text-green-600">记住</div>
+              <div className="text-xs text-green-400 mt-1">等更久再看</div>
+            </button>
           </div>
         </>
       )}

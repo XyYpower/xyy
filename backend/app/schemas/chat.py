@@ -31,3 +31,14 @@ class ConversationOut(BaseModel):
     messages: list[MessageOut] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
+
+
+class ConversationListItem(BaseModel):
+    """对话列表项，不含 messages（避免 N+1 查询）。"""
+    id: uuid.UUID
+    title: str
+    note_id: uuid.UUID | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}

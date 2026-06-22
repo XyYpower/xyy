@@ -7,6 +7,9 @@ export interface User {
   email: string | null
   reminder_enabled: boolean
   reminder_time: string | null
+  llm_provider: string | null
+  llm_model: string | null
+  llm_api_key_set: boolean
   created_at: string
 }
 
@@ -35,5 +38,8 @@ export const authApi = {
 
   changePassword: (data: { old_password: string; new_password: string }) =>
     client.put<any, ApiResponse<null>>('/auth/password', data),
+
+  updateLLMSettings: (data: { llm_provider?: string; llm_api_key?: string; llm_model?: string }) =>
+    client.put<any, ApiResponse<User>>('/auth/llm-settings', data),
 }
 

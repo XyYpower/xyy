@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Button, Input, Select, Tooltip, Spin, message } from 'antd'
-import { ArrowLeftOutlined, SaveOutlined, StarOutlined, StarFilled } from '@ant-design/icons'
+import { ArrowLeftOutlined, SaveOutlined, StarOutlined, StarFilled, ThunderboltOutlined } from '@ant-design/icons'
 import { noteApi, type Note } from '../api/notes'
+import { reviewApi } from '../api/review'
 import { categoryApi, type Category } from '../api/categories'
 import { tagApi, type Tag as TagType } from '../api/tags'
 import MarkdownEditor from '../components/MarkdownEditor'
@@ -24,6 +25,7 @@ export default function NoteDetail() {
   const [isFavorite, setIsFavorite] = useState(false)
   const [tagNames, setTagNames] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
+  const [generating, setGenerating] = useState(false)
   const [loading, setLoading] = useState(true)
   const [dirty, setDirty] = useState(false)
 
@@ -32,6 +34,7 @@ export default function NoteDetail() {
 
   // 追踪初始值用于判断是否有未保存更改
   const initialValues = useRef<string>('')
+  const handleSaveRef = useRef<() => Promise<void>>(() => Promise.resolve())
 
   const markDirty = useCallback(() => {
     if (!dirty) setDirty(true)
@@ -47,12 +50,12 @@ export default function NoteDetail() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault()
-        handleSave()
+        handleSaveRef.current()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  })
+  }, [])
 
   // 离开页面前提醒
   useEffect(() => {
@@ -126,6 +129,20 @@ export default function NoteDetail() {
       setSaving(false)
     }
   }
+  handleSaveRef.current = handleSave
+
+  const handleGenerateCards = async () => {
+    if (!id) return
+    setGenerating(true)
+    try {
+      const res = await reviewApi.generateCards(id)
+      message.success(`已生成 ${res.data.length} 张复习卡片`)
+    } catch {
+      message.error('生成卡片失败')
+    } finally {
+      setGenerating(false)
+    }
+  }
 
   // 监听内容变化标记 dirty
   useEffect(() => {
@@ -173,6 +190,11 @@ export default function NoteDetail() {
         <Tooltip title="Ctrl+S">
           <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={handleSave}>
             保存
+          </Button>
+        </Tooltip>
+        <Tooltip title="为这个知识点生成复习卡片">
+          <Button icon={<ThunderboltOutlined />} loading={generating} onClick={handleGenerateCards}>
+            生成卡片
           </Button>
         </Tooltip>
       </div>

@@ -1,5 +1,3 @@
-import csv
-import io
 import uuid
 
 from sqlalchemy import select
@@ -9,7 +7,6 @@ from sqlalchemy.orm import selectinload
 from app.models.import_job import ImportJob
 from app.models.interview import InterviewSession
 from app.models.note import Note
-from app.models.path import LearningPath
 from app.models.review import ReviewCard
 
 
@@ -18,9 +15,6 @@ async def export_json(db: AsyncSession, user_id: uuid.UUID) -> dict:
 
     notes = await _get_notes(db, user_id)
     review_cards = await _get_review_cards(db, user_id)
-    paths = (
-        await db.execute(select(LearningPath).where(LearningPath.user_id == user_id).order_by(LearningPath.created_at.asc()))
-    ).scalars().all()
     interviews = (
         await db.execute(
             select(InterviewSession)
@@ -64,16 +58,6 @@ async def export_json(db: AsyncSession, user_id: uuid.UUID) -> dict:
                 "is_flagged": card.is_flagged,
             }
             for card in review_cards
-        ],
-        "learning_paths": [
-            {
-                "id": str(path.id),
-                "name": path.name,
-                "description": path.description,
-                "modules": path.modules_json,
-                "created_at": path.created_at.isoformat() if path.created_at else None,
-            }
-            for path in paths
         ],
         "interviews": [
             {
@@ -131,19 +115,6 @@ async def export_markdown(db: AsyncSession, user_id: uuid.UUID) -> str:
             ]
         )
     return "\n".join(lines)
-
-
-async def export_anki_csv(db: AsyncSession, user_id: uuid.UUID) -> str:
-    """导出复习卡片为 Anki 可导入 CSV。"""
-
-    cards = await _get_review_cards(db, user_id)
-    buffer = io.StringIO()
-    writer = csv.writer(buffer)
-    writer.writerow(["front", "back", "tags"])
-    for card in cards:
-        note_title = card.note.title if card.note else ""
-        writer.writerow([card.question, card.answer, note_title.replace(" ", "_")])
-    return buffer.getvalue()
 
 
 async def _get_notes(db: AsyncSession, user_id: uuid.UUID) -> list[Note]:

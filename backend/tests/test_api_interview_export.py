@@ -111,9 +111,5 @@ async def test_interview_api_lifecycle_and_exports(monkeypatch):
             markdown_export = await client.get("/api/v1/export/markdown", headers=headers)
             assert markdown_export.status_code == 200, markdown_export.text
             assert "## JWT 认证" in markdown_export.text
-
-            anki_export = await client.get("/api/v1/export/anki", headers=headers)
-            assert anki_export.status_code == 200, anki_export.text
-            assert "front,back,tags" in anki_export.text
     finally:
         await _cleanup_users([username])

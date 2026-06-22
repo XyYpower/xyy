@@ -1,264 +1,290 @@
 import { useEffect, useState } from 'react'
-import { Button, Card, Empty, Progress, Row, Col, Statistic, Tag, Typography, List, message } from 'antd'
+import { Button, Card, Empty, Input, Progress, Row, Col, Statistic, Typography, message } from 'antd'
 import {
-  BookOutlined,
   ScheduleOutlined,
   TrophyOutlined,
-  ThunderboltOutlined,
-  RocketOutlined,
   CheckCircleOutlined,
-  ClockCircleOutlined,
+  PlusOutlined,
 } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import type { ReviewStats } from '../api/review'
 import { getDashboardData } from '../api/dashboard'
 import type { InterviewSession } from '../api/interview'
-import type { TraceStats } from '../api/traces'
-import { workspaceApi, type LearningTask } from '../api/workspace'
+import { noteApi } from '../api/notes'
 
 const { Title, Text } = Typography
 
-const taskTypeIcons: Record<string, React.ReactNode> = {
-  learn: <BookOutlined />,
-  review: <ScheduleOutlined />,
-  interview: <TrophyOutlined />,
+interface StreakData {
+  lastReviewDate: string
+  streakCount: number
 }
 
-const taskTypeColors: Record<string, string> = {
-  learn: 'blue',
-  review: 'orange',
-  interview: 'purple',
+function loadStreak(): StreakData {
+  try {
+    const raw = localStorage.getItem('knowbase_streak')
+    if (raw) return JSON.parse(raw)
+  } catch { /* ignore */ }
+  return { lastReviewDate: '', streakCount: 0 }
+}
+
+function saveStreak(data: StreakData) {
+  localStorage.setItem('knowbase_streak', JSON.stringify(data))
+}
+
+function updateStreakOnReview(): number {
+  const today = new Date().toISOString().slice(0, 10)
+  const streak = loadStreak()
+
+  if (streak.lastReviewDate === today) {
+    return streak.streakCount
+  }
+
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+  const newCount = streak.lastReviewDate === yesterday ? streak.streakCount + 1 : 1
+  saveStreak({ lastReviewDate: today, streakCount: newCount })
+  return newCount
+}
+
+function getDisplayStreak(): number {
+  const today = new Date().toISOString().slice(0, 10)
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+  const streak = loadStreak()
+
+  if (streak.lastReviewDate === today || streak.lastReviewDate === yesterday) {
+    return streak.streakCount
+  }
+  return 0
 }
 
 export default function Dashboard() {
   const navigate = useNavigate()
   const [stats, setStats] = useState<ReviewStats | null>(null)
   const [sessions, setSessions] = useState<InterviewSession[]>([])
-  const [traceStats, setTraceStats] = useState<TraceStats | null>(null)
-  const [todayTasks, setTodayTasks] = useState<LearningTask[]>([])
+  const [streak, setStreak] = useState(0)
+  const [quickTitle, setQuickTitle] = useState('')
+  const [quickContent, setQuickContent] = useState('')
+  const [quickAdding, setQuickAdding] = useState(false)
 
   useEffect(() => {
     const fetchAll = async () => {
       try {
-        const [dashData, tasksRes] = await Promise.allSettled([
-          getDashboardData(),
-          workspaceApi.getTodayTasks(),
-        ])
-        if (dashData.status === 'fulfilled') {
-          setStats(dashData.value.stats)
-          setSessions(dashData.value.sessions.slice(0, 3))
-          setTraceStats(dashData.value.traceStats)
-        }
-        if (tasksRes.status === 'fulfilled') {
-          setTodayTasks(tasksRes.value.data.tasks)
-        }
+        const dashData = await getDashboardData()
+        setStats(dashData.stats)
+        setSessions(dashData.sessions.slice(0, 3))
       } catch {
         message.error('加载概览失败')
       }
     }
     fetchAll()
+    setStreak(getDisplayStreak())
   }, [])
 
   const totalNotes = (stats?.mastered_count ?? 0) + (stats?.learning_count ?? 0) + (stats?.new_count ?? 0)
   const hasData = totalNotes > 0
 
-  const handleCompleteTask = async (taskId: string) => {
+  const handleStartReview = () => {
+    updateStreakOnReview()
+    navigate('/review')
+  }
+
+  const handleQuickAdd = async () => {
+    const title = quickTitle.trim()
+    if (!title) {
+      message.warning('请输入标题')
+      return
+    }
+    setQuickAdding(true)
     try {
-      await workspaceApi.completeTask(taskId)
-      setTodayTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'completed' } : t))
+      await noteApi.create({ title, content: quickContent.trim() })
+      message.success('知识点已创建')
+      setQuickTitle('')
+      setQuickContent('')
+      // 刷新统计数据
+      const dashData = await getDashboardData()
+      setStats(dashData.stats)
     } catch {
-      // 静默
+      message.error('创建失败')
+    } finally {
+      setQuickAdding(false)
     }
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="max-w-5xl mx-auto">
+      {/* 顶部问候 */}
       <div className="flex justify-between items-start mb-6">
         <div>
-          <Title level={2} className="!mb-1">今日学习工作台</Title>
-          <Text type="secondary">今天该做什么，一目了然</Text>
+          <Title level={2} className="!mb-1">
+            {streak > 0 ? `已连续学习 ${streak} 天` : '开始今天的学习'}
+          </Title>
+          <Text type="secondary">
+            {hasData ? `共 ${totalNotes} 个知识点，已掌握 ${stats?.mastered_count ?? 0} 个` : '创建你的第一个知识点开始吧'}
+          </Text>
         </div>
-        <Button type="primary" icon={<ThunderboltOutlined />} onClick={() => navigate('/workspace')}>
-          Agent 工作台
-        </Button>
+        {streak > 0 && (
+          <div className="text-4xl" title="连续打卡天数">
+            {streak >= 7 ? '🔥' : '📅'} {streak}
+          </div>
+        )}
       </div>
 
-      {/* 新用户引导 */}
+      {/* 快速添加 */}
+      <Card className="mb-6" size="small">
+        <div className="flex gap-2">
+          <Input
+            placeholder="快速添加知识点标题..."
+            value={quickTitle}
+            onChange={(e) => setQuickTitle(e.target.value)}
+            onPressEnter={handleQuickAdd}
+            className="flex-1"
+          />
+          <Input
+            placeholder="内容（可选）"
+            value={quickContent}
+            onChange={(e) => setQuickContent(e.target.value)}
+            onPressEnter={handleQuickAdd}
+            className="flex-1"
+          />
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            loading={quickAdding}
+            onClick={handleQuickAdd}
+          >
+            添加
+          </Button>
+        </div>
+      </Card>
+
       {!hasData && (
         <div className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg p-6 mb-6">
           <Title level={3} className="!text-white !mb-2">欢迎使用 KnowBase</Title>
-          <p className="text-indigo-100 mb-4">开始构建你的编程知识库，AI 会帮你规划学习路径、生成复习卡片和模拟面试。</p>
+          <p className="text-indigo-100 mb-4">用间隔复习巩固八股文记忆，用模拟面试检验掌握程度。</p>
           <div className="flex gap-3">
             <Button type="primary" ghost onClick={() => navigate('/notes')}>创建第一个知识点</Button>
-            <Button type="primary" ghost onClick={() => navigate('/import')}>导入知识内容</Button>
-            <Button type="primary" ghost onClick={() => navigate('/workspace')}>使用 Agent 规划</Button>
+            <Button type="primary" ghost onClick={() => navigate('/import')}>批量导入</Button>
           </div>
         </div>
       )}
 
-      {/* 今日状态速览 */}
+      {/* 核心数据卡片 */}
       <Row gutter={[16, 16]} className="mb-6">
-        <Col span={6}>
-          <Card hoverable onClick={() => navigate('/review')}>
-            <Statistic title="今日待复习" value={stats?.due_today ?? 0} prefix={<ScheduleOutlined />} />
+        <Col xs={24} md={8}>
+          <Card
+            hoverable
+            onClick={handleStartReview}
+            className={stats?.due_today ? 'border-indigo-300' : ''}
+          >
+            <Statistic
+              title="今日待复习"
+              value={stats?.due_today ?? 0}
+              prefix={<ScheduleOutlined />}
+              valueStyle={stats?.due_today ? { color: '#1677ff' } : undefined}
+            />
+            {stats?.due_today ? (
+              <Button type="link" size="small" className="p-0 mt-2" onClick={handleStartReview}>
+                开始复习 →
+              </Button>
+            ) : (
+              <Text type="secondary" className="text-xs">今天已全部复习完</Text>
+            )}
           </Card>
         </Col>
-        <Col span={6}>
-          <Card hoverable onClick={() => navigate('/workspace')}>
-            <Statistic title="待完成任务" value={todayTasks.filter(t => t.status !== 'completed').length} prefix={<ClockCircleOutlined />} />
-          </Card>
-        </Col>
-        <Col span={6}>
+        <Col xs={24} md={8}>
           <Card>
-            <Statistic title="已掌握" value={stats?.mastered_count ?? 0} suffix={`/ ${totalNotes}`} prefix={<CheckCircleOutlined />} />
+            <Statistic
+              title="已掌握"
+              value={stats?.mastered_count ?? 0}
+              suffix={`/ ${totalNotes}`}
+              prefix={<CheckCircleOutlined />}
+            />
+            <Progress
+              percent={totalNotes ? Math.round(((stats?.mastered_count ?? 0) / totalNotes) * 100) : 0}
+              showInfo={false}
+              strokeColor="#52c41a"
+              size="small"
+              className="mt-2"
+            />
           </Card>
         </Col>
-        <Col span={6}>
-          <Card hoverable onClick={() => navigate('/traces')}>
-            <Statistic title="Agent 运行" value={traceStats?.total_runs ?? 0} prefix={<ThunderboltOutlined />} />
+        <Col xs={24} md={8}>
+          <Card hoverable onClick={() => navigate('/interview')}>
+            <Statistic title="面试次数" value={sessions.length} prefix={<TrophyOutlined />} />
+            <Text type="secondary" className="text-xs">点击开始新一轮模拟面试</Text>
           </Card>
         </Col>
       </Row>
 
-      {/* 主区域 */}
       <Row gutter={[16, 16]}>
-        {/* 左侧：今日任务队列 */}
-        <Col span={14}>
-          <Card
-            title="今日任务队列"
-            extra={<Button type="link" onClick={() => navigate('/workspace')}>查看全部</Button>}
-          >
-            {todayTasks.length === 0 ? (
-              <Empty description="暂无今日任务">
-                <Button type="primary" icon={<RocketOutlined />} onClick={() => navigate('/workspace')}>
-                  运行 Agent 规划
-                </Button>
-              </Empty>
-            ) : (
-              <List
-                dataSource={todayTasks.slice(0, 8)}
-                renderItem={(task) => (
-                  <List.Item
-                    actions={
-                      task.status === 'completed'
-                        ? [<Tag key="done" color="green">已完成</Tag>]
-                        : [
-                            <Button key="done" type="link" size="small" onClick={() => handleCompleteTask(task.id)}>
-                              完成
-                            </Button>,
-                          ]
-                    }
-                  >
-                    <List.Item.Meta
-                      avatar={taskTypeIcons[task.task_type] || <BookOutlined />}
-                      title={
-                        <span className={task.status === 'completed' ? 'line-through text-gray-400' : ''}>
-                          {task.title}
-                        </span>
-                      }
-                      description={
-                        <Tag color={taskTypeColors[task.task_type] || 'default'}>
-                          {task.task_type === 'learn' ? '学习' : task.task_type === 'review' ? '复习' : task.task_type}
-                        </Tag>
-                      }
-                    />
-                  </List.Item>
-                )}
-              />
-            )}
-          </Card>
-
-          {/* 掌握度分布 */}
-          <Card title="学习进度" className="mt-4">
+        {/* 学习进度 */}
+        <Col xs={24} md={14}>
+          <Card title="掌握进度">
             <div className="space-y-3">
               <div>
                 <div className="flex justify-between text-sm mb-1">
                   <span>已掌握</span><span>{stats?.mastered_count ?? 0}</span>
                 </div>
-                <Progress percent={totalNotes ? Math.round(((stats?.mastered_count ?? 0) / totalNotes) * 100) : 0} showInfo={false} strokeColor="#52c41a" />
+                <Progress
+                  percent={totalNotes ? Math.round(((stats?.mastered_count ?? 0) / totalNotes) * 100) : 0}
+                  showInfo={false}
+                  strokeColor="#52c41a"
+                />
               </div>
               <div>
                 <div className="flex justify-between text-sm mb-1">
                   <span>学习中</span><span>{stats?.learning_count ?? 0}</span>
                 </div>
-                <Progress percent={totalNotes ? Math.round(((stats?.learning_count ?? 0) / totalNotes) * 100) : 0} showInfo={false} strokeColor="#faad14" />
+                <Progress
+                  percent={totalNotes ? Math.round(((stats?.learning_count ?? 0) / totalNotes) * 100) : 0}
+                  showInfo={false}
+                  strokeColor="#faad14"
+                />
               </div>
               <div>
                 <div className="flex justify-between text-sm mb-1">
                   <span>未学</span><span>{stats?.new_count ?? 0}</span>
                 </div>
-                <Progress percent={totalNotes ? Math.round(((stats?.new_count ?? 0) / totalNotes) * 100) : 0} showInfo={false} strokeColor="#d9d9d9" />
+                <Progress
+                  percent={totalNotes ? Math.round(((stats?.new_count ?? 0) / totalNotes) * 100) : 0}
+                  showInfo={false}
+                  strokeColor="#d9d9d9"
+                />
               </div>
             </div>
           </Card>
         </Col>
 
-        {/* 右侧：快捷入口 + 面试 + AI 概览 */}
-        <Col span={10}>
-          {/* 快捷操作 */}
+        {/* 快捷入口 + 最近面试 */}
+        <Col xs={24} md={10}>
           <Card title="快捷操作" className="mb-4">
             <div className="grid grid-cols-2 gap-2">
               <Button block onClick={() => navigate('/notes')}>知识点</Button>
               <Button block onClick={() => navigate('/import')}>导入知识</Button>
-              <Button block onClick={() => navigate('/review')}>开始复习</Button>
+              <Button block onClick={handleStartReview}>开始复习</Button>
               <Button block onClick={() => navigate('/interview')}>模拟面试</Button>
               <Button block onClick={() => navigate('/chat')}>AI 对话</Button>
-              <Button block onClick={() => navigate('/paths')}>学习路径</Button>
+              <Button block onClick={() => navigate('/settings')}>设置</Button>
             </div>
           </Card>
 
-          {/* 最近面试 */}
-          <Card
-            title="最近面试"
-            extra={<Button type="link" onClick={() => navigate('/interview')}>全部</Button>}
-            className="mb-4"
-          >
+          <Card title="最近面试">
             {sessions.length === 0 ? (
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="还没有面试记录" />
             ) : (
               <div className="space-y-2">
                 {sessions.map((s) => (
-                  <div key={s.id} className="flex justify-between items-center text-sm">
+                  <div
+                    key={s.id}
+                    className="flex justify-between items-center text-sm cursor-pointer hover:bg-gray-50 p-1 rounded"
+                    onClick={() => navigate('/interview')}
+                  >
                     <span className="truncate flex-1">{s.title}</span>
-                    <Tag color={s.status === 'completed' ? 'green' : 'gold'}>
+                    <span className={s.status === 'completed' ? 'text-green-600' : 'text-orange-500'}>
                       {s.status === 'completed' ? `${s.total_score ?? 0} 分` : '进行中'}
-                    </Tag>
+                    </span>
                   </div>
                 ))}
               </div>
-            )}
-          </Card>
-
-          {/* AI 使用概览 */}
-          <Card
-            title="AI 使用概览"
-            extra={<Button type="link" onClick={() => navigate('/traces')}>Trace Lab</Button>}
-          >
-            {traceStats ? (
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Agent 运行</span>
-                  <span className="font-medium">{traceStats.total_runs}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">AI 调用</span>
-                  <span className="font-medium">{traceStats.total_ai_calls}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">成功率</span>
-                  <span className="font-medium">{traceStats.success_rate}%</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Token 消耗</span>
-                  <span className="font-medium">{(traceStats.total_prompt_tokens + traceStats.total_completion_tokens).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">预估成本</span>
-                  <span className="font-medium">${traceStats.total_cost.toFixed(4)}</span>
-                </div>
-              </div>
-            ) : (
-              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据" />
             )}
           </Card>
         </Col>
